@@ -13,6 +13,11 @@ Motorola68000::Motorola68000(QObject *parent)
 
 }
 
+Motorola68000::~Motorola68000()
+{
+   delete d_ptr;
+}
+
 void Motorola68000::attachBus(MemoryBus* bus)
 {
    Q_D(Motorola68000);
@@ -47,6 +52,8 @@ int Motorola68000::clock(int ticks)
 
    d->currentTicks -= ticks;
 
+   QString  traceMessage;
+
    while(d->currentTicks < 0) {
       if (d->disabled) {
          d->currentTicks = 0;
@@ -55,7 +62,6 @@ int Motorola68000::clock(int ticks)
 
       unsigned int opcode;
       int      status = Motorola68000Private::EXECUTE_OK;
-      QString  traceMessage;
 
       if (d->tracing) {
          traceMessage = "0x";

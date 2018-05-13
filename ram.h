@@ -13,6 +13,7 @@ class Ram
       Q_OBJECT
    public:
       explicit Ram(int size, QObject *parent = nullptr);
+      ~Ram();
 
       int      peek(quint32 address, quint8& val);
       int      poke(quint32 address, quint8 val);

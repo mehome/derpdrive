@@ -13,10 +13,12 @@ class Z80Private {
    public:
       Z80Private(Z80* q)
          : q_ptr(q),
+           bus(0),
            busReq(0),
            resetting(0)
       {
-
+         memset(&this->state, 0, sizeof(Z80_STATE));
+         Z80Reset(&this->state);
       }
 
    private:
@@ -33,7 +35,7 @@ Z80::Z80(QObject* parent)
 
 Z80::~Z80()
 {
-
+   delete d_ptr;
 }
 
 void Z80::attachBus(MemoryBus* bus)

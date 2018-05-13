@@ -78,6 +78,12 @@ enum VDPCommand {
    CRAM_READ,
 };
 
+enum Plane {
+   PLANEA,
+   PLANEB,
+   WINDOWPLANE,
+};
+
 class VDPPrivate {
    public:
       QByteArray        cram;
@@ -141,7 +147,8 @@ class VDPPrivate {
            cram(QByteArray(64 * 2, 0)),
            vsram(QByteArray(40 * 2, 0)),
            vram(QByteArray(64*1024, 0)),
-           registerData(QByteArray(25, 0))
+           registerData(QByteArray(25, 0)),
+           currentCycles(0)
       {
          this->frame = QImage(320, 240, QImage::Format_ARGB32);
          this->frame.fill(0x01000000);
@@ -171,6 +178,8 @@ class VDPPrivate {
             //qDebug() << "VDP CMD" << QString::number(this->command0, 16) << QString::number(this->command1, 16);
 
             if (!this->writePending) {
+               this->dmaActive = false;
+
                this->commandByte &= ~0x03;
                this->commandByte |= (this->command0 & 0xC0) >> 6;
 
@@ -369,16 +378,62 @@ class VDPPrivate {
          }
       }
 
-      void drawPlane(QImage* buffer, quint16 address,  int width, int height) {
-         for(int y = 0; y < height; y++) {
-            for(int x = 0; x < width; x++) {
+      void drawPlane(int plane, int width, int height) {
+         quint16 address;
+         QImage* buffer;
+         int hscroll = 0;
+         int vscroll = 0;
+         int scrollOffset = 0;
+
+         switch (plane) {
+            case PLANEA:
+               buffer = &this->planeA;
+               address = (this->registerData[PlaneANameTable] & 0x38) << 10;
+               scrollOffset = 0;
+               break;
+
+            case PLANEB:
+               buffer = &this->planeB;
+               address = (this->registerData[PlaneBNameTable] & 0x7) << 13;
+               scrollOffset = 2;
+               break;
+         }
+
+         if (plane == PLANEA || plane == PLANEB) {
+            quint16 hscrollAddress = (this->registerData[HScrollData] & 0x7F) << 10;
+            hscroll = qFromBigEndian(*(qint16*)(this->vram.data() + hscrollAddress + scrollOffset));
+            vscroll = qFromBigEndian(*(qint16*)(this->vsram.data() + scrollOffset));
+         } else if (plane == WINDOWPLANE) {
+
+         }
+
+         int screenWidth = buffer->width();
+         int screenHeight = buffer->height();
+
+         buffer->fill(0x01000000);
+
+         for(int y = -1; y <= screenHeight / 8; y++) {
+            for(int x = -1; x <= screenWidth / 8; x++) {
+               int tilesetX = x - hscroll / 8;
+               int tilesetY = y + vscroll / 8;
+
+               if (tilesetX < 0)
+                  tilesetX = width + (tilesetX % width);
+               else if (tilesetX >= width)
+                  tilesetX = tilesetX % width;
+
+               if (tilesetY < 0)
+                  tilesetY = height + (tilesetY % height);
+               else if (tilesetY >= height)
+                  tilesetY = tilesetY % height;
+
                quint16* nametable = (quint16*)(this->vram.data() + address);
-               quint16 entry = qFromBigEndian(nametable[y * width + x]);
+               quint16 entry = qFromBigEndian(nametable[tilesetY * width + tilesetX]); //y * width + x]);
 
                quint16 artIndex = (entry & 0x3FF) << 5;
                quint8  palletteLine = (entry & 0x60) >> 5;
 
-               this->blitCharacter(buffer, artIndex, palletteLine, entry & 0x8000, entry & 0x800, entry & 0x1000, x * 8, y * 8, 8, 8);
+               this->blitCharacter(buffer, artIndex, palletteLine, entry & 0x8000, entry & 0x800, entry & 0x1000, x * 8 + (hscroll % 8), y * 8 - (vscroll % 8), 8, 8);
             }
          }
       }
@@ -505,8 +560,8 @@ int VDP::clock(int cycles)
 
             d->beamH = 0;
 
-            // Draw Plane A
-            d->drawPlane(&d->planeA, (d->registerData[PlaneANameTable] & 0x38) << 10, planeWidth, planeHeight);
+            d->drawPlane(PLANEA, planeWidth, planeHeight);
+            d->drawPlane(PLANEB, planeWidth, planeHeight);
          }
 
 

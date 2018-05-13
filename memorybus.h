@@ -23,6 +23,7 @@ class MemoryBus :
 
    public:
       explicit MemoryBus(int size, QObject *parent = nullptr);
+      ~MemoryBus();
 
       qint32   attachDevice(IMemory* dev);
       void     detachDevice(IMemory* dev);

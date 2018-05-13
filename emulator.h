@@ -11,6 +11,7 @@ class Emulator : public QObject
       Q_OBJECT
    public:
       explicit Emulator(QObject *parent = nullptr);
+      ~Emulator();
 
       void reset();
       void emulate();

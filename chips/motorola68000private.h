@@ -127,6 +127,7 @@ class Motorola68000Private {
 
    public:
       Motorola68000Private(Motorola68000* q);
+      ~Motorola68000Private();
 
    public:
       ExecutionPointer  decodeInstruction(int opcode);

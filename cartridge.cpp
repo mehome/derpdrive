@@ -42,6 +42,11 @@ class CartridgePrivate {
          qDebug() << "Header size" << sizeof(CartridgeHeader);
       }
 
+      ~CartridgePrivate() {
+         if (this->header)
+            delete this->header;
+      }
+
       quint16 calculateChecksum(QByteArray rom) {
          quint16 sum = 0;
          //quint16* word = (quint16*)rom.data();
@@ -255,6 +260,11 @@ Cartridge::Cartridge(QObject *parent)
      d_ptr(new CartridgePrivate(this))
 {
 
+}
+
+Cartridge::~Cartridge()
+{
+   delete d_ptr;
 }
 
 void Cartridge::load(QString path)

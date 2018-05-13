@@ -13,6 +13,7 @@ class Cartridge
       Q_OBJECT
    public:
       explicit Cartridge(QObject *parent = nullptr);
+      ~Cartridge();
 
       void     load(QString path);
 

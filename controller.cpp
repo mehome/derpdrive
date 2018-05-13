@@ -32,6 +32,11 @@ Controller::Controller(QObject *parent)
 
 }
 
+Controller::~Controller()
+{
+   delete d_ptr;
+}
+
 int Controller::peek(quint32 address, quint8& val)
 {
    Q_D(Controller);

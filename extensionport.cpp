@@ -22,7 +22,7 @@ ExtensionPort::ExtensionPort(QObject *parent)
 
 ExtensionPort::~ExtensionPort()
 {
-
+   delete d_ptr;
 }
 
 int ExtensionPort::peek(quint32 address, quint8& val)

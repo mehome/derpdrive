@@ -20,7 +20,13 @@ Ram::Ram(int size, QObject *parent)
 {
    Q_D(Ram);
 
-   d->data.resize(size);
+    d->data.resize(size);
+    d->data.fill(0);
+}
+
+Ram::~Ram()
+{
+    delete d_ptr;
 }
 
 int Ram::peek(quint32 address, quint8& val)

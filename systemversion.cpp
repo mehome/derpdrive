@@ -31,7 +31,7 @@ SystemVersion::SystemVersion(QObject* parent)
 
 SystemVersion::~SystemVersion()
 {
-
+    delete d_ptr;
 }
 
 int SystemVersion::peek(quint32 address, quint8& val)

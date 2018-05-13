@@ -27,9 +27,15 @@ class MemoryBusPrivate {
 
    public:
       MemoryBusPrivate(MemoryBus* q)
-         : q_ptr(q)
+         : q_ptr(q),
+           wiring(0)
       {
          qDebug() << "BUS Size:" << (sizeof(this->wiring) / sizeof(MemoryWiring));
+      }
+
+      ~MemoryBusPrivate() {
+         if (this->wiring)
+            delete[] this->wiring;
       }
 
    private:
@@ -46,6 +52,11 @@ MemoryBus::MemoryBus(int size, QObject *parent)
 
    d->busSize = size;
    d->wiring = new MemoryWiring[size];
+}
+
+MemoryBus::~MemoryBus()
+{
+   delete d_ptr;
 }
 
 qint32 MemoryBus::attachDevice(IMemory* dev)

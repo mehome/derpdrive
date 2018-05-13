@@ -164,6 +164,11 @@ Emulator::Emulator(QObject *parent)
    //d->cartridge->load("roms/Star Trek - Deep Space Nine - Crossroads of Time (Europe).md");
 }
 
+Emulator::~Emulator()
+{
+   delete d_ptr;
+}
+
 void Emulator::reset()
 {
    Q_D(Emulator);

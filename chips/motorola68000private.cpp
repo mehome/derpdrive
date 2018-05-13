@@ -44,7 +44,8 @@ Motorola68000Private::Motorola68000Private(Motorola68000* q)
    : q_ptr(q),
      disabled(false),
      currentTicks(0),
-     tracing(false)
+     tracing(false),
+     decodeCacheTable(0)
 {
    this->registerData.resize(19);
    this->decodeCacheTable = new ExecutionPointer[65536];
@@ -64,6 +65,12 @@ Motorola68000Private::Motorola68000Private(Motorola68000* q)
    }
 
    qDebug() << "Done";
+}
+
+Motorola68000Private::~Motorola68000Private()
+{
+   if (this->decodeCacheTable)
+      delete[] this->decodeCacheTable;
 }
 
 ExecutionPointer Motorola68000Private::decodeInstruction(int opcode)
@@ -221,7 +228,7 @@ int Motorola68000Private::pop(int stackRegister, unsigned int& value, int size)
 int Motorola68000Private::computeEffectiveAddress(quint32& address, int& in_register, QString& traceRecord, int mode_register, int size, bool trace)
 {
    Register tmpRegister;
-   unsigned int extend_word;
+   quint32 extend_word;
    int status;
 
    switch (mode_register >> 3) {
@@ -1149,8 +1156,60 @@ int Motorola68000Private::ExecuteADDX(int opcode, QString& traceRecord, int trac
 }
 
 int Motorola68000Private::ExecuteAND(int opcode, QString& traceRecord, int trace) {
-   traceRecord += "AND (Unimplemented)";
-   return EXECUTE_ILLEGAL_INSTRUCTION;
+   int status, size, in_register_flag;
+   quint32 ea_address, register_number;
+   unsigned int result, ea_data;
+   QString ea_description;
+
+   size = (opcode & 0x00c0) >> 6;
+
+   // Get the <ea> data address
+   if ((status = this->computeEffectiveAddress(ea_address, in_register_flag, ea_description,
+                                               opcode & 0x3f, size, trace)) != EXECUTE_OK)
+      return status;
+
+   // Fetch the <ea> data
+   if (in_register_flag)
+      ea_data = this->registerData[ea_address];
+   else if ((status = this->peek(ea_address, ea_data, size)) != EXECUTE_OK)
+      return status;
+
+   // Get the register number
+   register_number = D0_INDEX + ((opcode & 0x0e00) >> 9);
+
+   if (trace) {
+      traceRecord += "AND";
+      if (size == BYTE)
+         traceRecord += ".B ";
+      else if (size == WORD)
+         traceRecord += ".W ";
+      else if (size == LONG)
+         traceRecord += ".L ";
+   }
+
+   if (opcode & 0x0100) { // <Dn> & <ea> -> <ea>
+      if (trace)
+         traceRecord += this->registerInfo[register_number].name +
+                        "," +
+                        ea_description;
+      result = this->registerData[register_number] & ea_data;
+      this->setConditionCodes(this->registerData[register_number], ea_data, result, size,
+                              OTHER, V_FLAG | C_FLAG | Z_FLAG | N_FLAG);
+      if ((status = this->poke(ea_address, result, size)) != EXECUTE_OK)
+         return status;
+   } else { // <ea> & <Dn> -> <Dn>
+      if (trace)
+         traceRecord += ea_description +
+                        "," +
+                        this->registerInfo[register_number].name;
+
+      result = ea_data & this->registerData[register_number];
+      this->setConditionCodes(ea_data, this->registerData[register_number], result, size,
+                              OTHER, V_FLAG | C_FLAG | Z_FLAG | N_FLAG);
+      this->setRegister(register_number, result, size);
+   }
+
+   return EXECUTE_OK;
 }
 
 int Motorola68000Private::ExecuteANDI(int opcode, QString& traceRecord, int trace) {
@@ -1657,8 +1716,53 @@ int Motorola68000Private::ExecuteCMP(int opcode, QString& traceRecord, int trace
 }
 
 int Motorola68000Private::ExecuteCMPA(int opcode, QString& traceRecord, int trace) {
-   traceRecord += "CMPA (Unimplemented)";
-   return EXECUTE_ILLEGAL_INSTRUCTION;
+   int status, size, in_register_flag;
+   quint32 ea_address, register_number;
+   unsigned int result, ea_data;
+   QString ea_description;
+
+   if (opcode & 0x0100)
+      size = LONG;
+   else
+      size = WORD;
+
+   // Get the <ea> data address
+   if ((status = this->computeEffectiveAddress(ea_address, in_register_flag, ea_description,
+                                               opcode & 0x3f, size, trace)) != EXECUTE_OK)
+      return status;
+
+   // Fetch the <ea> data
+   if (in_register_flag)
+      ea_data = this->registerData[ea_address];
+   else if ((status = this->peek(ea_address, ea_data, size)) != EXECUTE_OK)
+      return status;
+
+   ea_data = this->signExtend(ea_data, size);
+
+   // Get the register number
+   register_number = A0_INDEX + ((opcode & 0x0e00) >> 9);
+
+   // Adjust register_number of it's A7 and we're in supervisor mode
+   if ((register_number == USP_INDEX) && (this->registerData[SR_INDEX] & S_FLAG))
+      register_number = SSP_INDEX;
+
+   result = this->registerData[register_number] - ea_data;
+   this->setConditionCodes(ea_data, this->registerData[register_number], result, size,
+                           SUBTRACTION, C_FLAG | V_FLAG | Z_FLAG | N_FLAG);
+
+   if (trace) {
+      traceRecord += "CMPA";
+      if (size == WORD)
+         traceRecord += ".W ";
+      else if (size == LONG)
+         traceRecord += ".L ";
+
+      traceRecord += ea_description +
+                     "," +
+                     this->registerInfo[register_number].name;
+   }
+
+   return EXECUTE_OK;
 }
 
 int Motorola68000Private::ExecuteCMPI(int opcode, QString& traceRecord, int trace) {
@@ -1700,7 +1804,7 @@ int Motorola68000Private::ExecuteCMPI(int opcode, QString& traceRecord, int trac
       this->setConditionCodes(src, dest, result, size, SUBTRACTION,
                               C_FLAG | V_FLAG | Z_FLAG | N_FLAG);
    } else {
-      if ((status = this->peek(dest_addr, dest, size)) != EXECUTE_ADDRESS_ERROR)
+      if ((status = this->peek(dest_addr, dest, size)) != EXECUTE_OK)
          return status;
 
       result = dest - src;
@@ -1795,8 +1899,39 @@ int Motorola68000Private::ExecuteEXG(int opcode, QString& traceRecord, int trace
 }
 
 int Motorola68000Private::ExecuteEXT(int opcode, QString& traceRecord, int trace) {
-   traceRecord += "EXT (Unimplemented)";
-   return EXECUTE_ILLEGAL_INSTRUCTION;
+   unsigned int register_number;
+   unsigned long data;
+
+   if (trace)
+      traceRecord += "EXT";
+
+   // Get the data register number
+   register_number = D0_INDEX + (opcode & 0x0007);
+   data = this->registerData[register_number];
+
+   // Extend the data
+   if (((opcode & 0x01c0) >> 6) == 2) {
+      data = this->signExtend(data, BYTE);
+      this->setRegister(register_number, data, WORD);
+      this->setConditionCodes(0, 0, data, WORD, OTHER,
+                              V_FLAG | C_FLAG | Z_FLAG | N_FLAG);
+
+      if (trace)
+         traceRecord += ".W ";
+   } else {
+      data = this->signExtend(data, WORD);
+      this->setRegister(register_number, data, LONG);
+      this->setConditionCodes(0, 0, data, LONG, OTHER,
+                             V_FLAG | C_FLAG | Z_FLAG | N_FLAG);
+
+      if (trace)
+         traceRecord += ".L ";
+   }
+
+   if (trace)
+      traceRecord += this->registerInfo[register_number].name;
+
+   return EXECUTE_OK;
 }
 
 int Motorola68000Private::ExecuteILLEGAL(int opcode, QString& traceRecord, int trace) {
@@ -3011,8 +3146,61 @@ int Motorola68000Private::ExecuteSTOP(int opcode, QString& traceRecord, int trac
 }
 
 int Motorola68000Private::ExecuteSUB(int opcode, QString& traceRecord, int trace) {
-   traceRecord += "SUB (Unimplemented)";
-   return EXECUTE_ILLEGAL_INSTRUCTION;
+   int status, size, in_register_flag;
+   quint32 ea_address, register_number;
+   unsigned int result, ea_data;
+   QString ea_description;
+
+   size = (opcode & 0x00c0) >> 6;
+
+   // Get the <ea> data address
+   if ((status = this->computeEffectiveAddress(ea_address, in_register_flag, ea_description, opcode & 0x3f, size, trace)) != EXECUTE_OK)
+      return status;
+
+   // Fetch the <ea> data
+   if (in_register_flag)
+      ea_data = this->registerData[ea_address];
+   else if ((status = this->peek(ea_address, ea_data, size)) != EXECUTE_OK)
+      return status;
+
+   // Get the register number
+   register_number =D0_INDEX + ((opcode & 0x0e00) >> 9);
+
+   if (trace) {
+      traceRecord += "SUB";
+      if (size == BYTE)
+         traceRecord += ".B ";
+      else if (size == WORD)
+         traceRecord += ".W ";
+      else if (size == LONG)
+         traceRecord += ".L ";
+   }
+
+   if (opcode & 0x0100) {
+      if (trace)
+         traceRecord += this->registerInfo[register_number].name +
+                        ","+
+                        ea_description;
+
+      result =  ea_data - this->registerData[register_number];
+      this->setConditionCodes(this->registerData[register_number], ea_data, result, size,
+                              SUBTRACTION, C_FLAG | V_FLAG | Z_FLAG | N_FLAG | X_FLAG);
+      if ((status = this->poke(ea_address, result, size)) != EXECUTE_OK)
+         return status;
+   } else {
+      if (trace)
+         traceRecord += ea_description +
+                        "," +
+                        this->registerInfo[register_number].name;
+
+      result = this->registerData[register_number] - ea_data;
+
+      this->setConditionCodes(ea_data, this->registerData[register_number], result, size,
+                              SUBTRACTION, C_FLAG | V_FLAG | Z_FLAG | N_FLAG | X_FLAG);
+      this->setRegister(register_number, result, size);
+   }
+
+   return EXECUTE_OK;
 }
 
 int Motorola68000Private::ExecuteSUBA(int opcode, QString& traceRecord, int trace) {

@@ -13,6 +13,7 @@ class Motorola68000 : public QObject
       Q_OBJECT
    public:
       explicit Motorola68000(QObject *parent = nullptr);
+      ~Motorola68000();
 
       // Setup
       void  attachBus(MemoryBus* bus);
