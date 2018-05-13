@@ -22,7 +22,7 @@ class MemoryBus :
       Q_OBJECT
 
    public:
-      explicit MemoryBus(QObject *parent = nullptr);
+      explicit MemoryBus(int size, QObject *parent = nullptr);
 
       qint32   attachDevice(IMemory* dev);
       void     detachDevice(IMemory* dev);
@@ -32,6 +32,8 @@ class MemoryBus :
 
       int      peek(quint32 address, quint8& val);
       int      poke(quint32 address, quint8 val);
+
+      quint32  lastExceptionAddress();
 
    signals:
 

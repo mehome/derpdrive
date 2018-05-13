@@ -20,8 +20,13 @@ class MainWindow : public QMainWindow
       explicit MainWindow(QWidget *parent = 0);
       ~MainWindow();
 
+   public slots:
+      void emulateFrame();
+      void updateFrame(QImage* frame);
+
    private:
       Ui::MainWindow *ui;
+      QTimer*         frameTimer;
 };
 
 #endif // MAINWINDOW_H

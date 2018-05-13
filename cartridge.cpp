@@ -102,7 +102,45 @@ class CartridgePrivate {
       }
 
       void readBIN(QString path) {
+         QScopedPointer<CartridgeHeader> header(new CartridgeHeader());
 
+         QByteArray romData;
+
+         QFile rom(path);
+         if(!rom.open(QFile::ReadOnly)) {
+            qCritical() << "Failed to lead rom" << path;
+            return;
+         }
+
+         if(!this->readHeader(&rom, header.data())) {
+            qCritical() << "Invalid ROM header!";
+            return;
+         }
+
+         int len = header->romEnd - header->romStart;
+         int middlepoint = len / 2;
+
+         if (len > rom.size()) {
+            qCritical() << "Invalid ROM header!";
+         }
+
+         // Re-Read header for rom storage
+         rom.seek(0);
+
+         // Read rom data
+         romData.append(rom.readAll());
+         if(romData.length() < len)
+            romData.append(QByteArray(romData.length() - len, 0));
+
+         quint16 checksum = this->calculateChecksum(romData);
+         if (checksum != header->checksum) {
+            qCritical() << "Checksum mismatch!";
+            qCritical() << "Expected:" << header->checksum;
+            qCritical() << "Got:" << checksum;
+            //return; So what?
+         }
+
+         this->readROM(header.take(), romData);
       }
 
       // Reads the MD Format according to
@@ -160,10 +198,6 @@ class CartridgePrivate {
             //return; So what?
          }
 
-         QFile test("test.bin");
-         test.open(QFile::ReadWrite);
-         test.write(romData);
-
          this->readROM(header.take(), romData);
       }
 
@@ -187,7 +221,7 @@ class CartridgePrivate {
          this->ramData.resize(ramSize);
 
          // SRAM Enabled?
-         if (QString::fromLatin1(header->sramFlag, sizeof(CartridgeHeader::sramFlag)) == "RA" || header->sramFlag[0] == 0xF8) {
+         if (QString::fromLatin1(header->sramFlag, sizeof(CartridgeHeader::sramFlag)) == "RA" || (unsigned char)header->sramFlag[0] == 0xF8) {
             quint32 sramSize = header->sramEnd - header->sramStart;
             qDebug() << "SRam size:" << ramSize;
 
@@ -230,7 +264,7 @@ void Cartridge::load(QString path)
    d->unload();
 
    // Detect rom format
-   if (path.right(3).toLower() == ".bin") {
+   if (path.right(4).toLower() == ".bin") {
       d->readBIN(path);
    } else if (path.right(3).toLower() == ".md") {
       d->readMD(path);

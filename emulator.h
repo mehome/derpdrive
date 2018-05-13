@@ -3,6 +3,8 @@
 
 #include <QObject>
 
+class VDP;
+
 class EmulatorPrivate;
 class Emulator : public QObject
 {
@@ -10,12 +12,17 @@ class Emulator : public QObject
    public:
       explicit Emulator(QObject *parent = nullptr);
 
-      void startEmulation();
-      void stopEmulation();
+      void reset();
+      void emulate();
+
+      void setClockRate(long clock);
+
+      VDP* vdp() const;
 
    signals:
 
    public slots:
+      void reportFps();
 
    private:
       EmulatorPrivate* d_ptr;

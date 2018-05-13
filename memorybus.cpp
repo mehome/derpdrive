@@ -20,14 +20,16 @@ struct MemoryWiring {
 
 class MemoryBusPrivate {
    public:
-      MemoryWiring         wiring[BUS_SIZE];
+      int                  busSize;
+      MemoryWiring*        wiring; //[BUS_SIZE];
       QVector<IMemory*>    devices;
+      quint32              exceptionAddress;
 
    public:
       MemoryBusPrivate(MemoryBus* q)
          : q_ptr(q)
       {
-
+         qDebug() << "BUS Size:" << (sizeof(this->wiring) / sizeof(MemoryWiring));
       }
 
    private:
@@ -36,11 +38,14 @@ class MemoryBusPrivate {
 
 };
 
-MemoryBus::MemoryBus(QObject *parent)
+MemoryBus::MemoryBus(int size, QObject *parent)
    : QObject(parent),
      d_ptr(new MemoryBusPrivate(this))
 {
+   Q_D(MemoryBus);
 
+   d->busSize = size;
+   d->wiring = new MemoryWiring[size];
 }
 
 qint32 MemoryBus::attachDevice(IMemory* dev)
@@ -56,7 +61,7 @@ void MemoryBus::wire(int start, int end, int base, qint32 device)
 {
    Q_D(MemoryBus);
 
-   if (start >= BUS_SIZE || end > BUS_SIZE) {
+   if (start >= d->busSize || end > d->busSize) {
       qCritical() << "Can't wire address past bus size:" <<  start;
       return;
    }
@@ -72,7 +77,7 @@ void MemoryBus::wire(int src, int dst, qint32 device)
 {
    Q_D(MemoryBus);
 
-   if (src >= BUS_SIZE) {
+   if (src >= d->busSize) {
       qCritical() << "Can't wire address past bus size:" <<  src;
       return;
    }
@@ -85,17 +90,19 @@ int MemoryBus::peek(quint32 address, quint8& val) {
    Q_D(MemoryBus);
 
    // Check if adress is legal
-   if (address < 0 || address >= BUS_SIZE) {
+   if (Q_UNLIKELY(address >= d->busSize)) {
+      d->exceptionAddress = address;
+      val = 0;
       return BUS_ERROR;
    }
 
    // Check if adress is hooked up
-   if(d->wiring[address].handle >= 0) {
+   if(Q_LIKELY(d->wiring[address].handle >= 0)) {
       IMemory* dev = d->devices[d->wiring[address].handle];
-      dev->peek(d->wiring[address].address, val);
-
-      return NO_ERROR;
+      return dev->peek(d->wiring[address].address, val);
    } else {
+      d->exceptionAddress = address;
+      val = 0;
       return BUS_ERROR;
    }
 }
@@ -104,16 +111,21 @@ int MemoryBus::poke(quint32 address, quint8 val) {
    Q_D(MemoryBus);
 
    // Check if adress is legal
-   if (address < 0 || address >= BUS_SIZE) {
+   if (address >= d->busSize) {
+      d->exceptionAddress = address;
       return BUS_ERROR;
    }
 
    if(d->wiring[address].handle >= 0) {
       IMemory* dev = d->devices[d->wiring[address].handle];
-      dev->poke(d->wiring[address].address, val);
-
-      return NO_ERROR;
+      return dev->poke(d->wiring[address].address, val);
    }
 
+   d->exceptionAddress = address;
    return BUS_ERROR;
+}
+
+quint32 MemoryBus::lastExceptionAddress()
+{
+   return 0;
 }

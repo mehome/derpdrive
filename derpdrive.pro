@@ -31,7 +31,14 @@ SOURCES += \
     emulator.cpp \
     cartridge.cpp \
     ram.cpp \
-    chips/motorola68000private.cpp
+    chips/motorola68000private.cpp \
+    systemversion.cpp \
+    controller.cpp \
+    extensionport.cpp \
+    chips/vdp.cpp \
+    device.cpp \
+    chips/z80.cpp \
+    chips/z80/z80emu.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -42,7 +49,19 @@ HEADERS += \
     config.h \
     cartridge.h \
     ram.h \
-    chips/motorola68000private.h
+    chips/motorola68000private.h \
+    chips/z80/z80emu.h \
+    chips/z80/z80user.h \
+    chips/z80/z80config.h \
+    chips/z80/tables.h \
+    chips/z80/instructions.h \
+    chips/z80/macros.h \
+    systemversion.h \
+    controller.h \
+    extensionport.h \
+    chips/vdp.h \
+    device.h \
+    chips/z80.h
 
 FORMS += \
         mainwindow.ui

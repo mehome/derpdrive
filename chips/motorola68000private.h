@@ -3,6 +3,9 @@
 
 #include <QObject>
 #include <QVector>
+#include <queue>
+
+class Device;
 
 class MemoryBus;
 class Motorola68000;
@@ -12,8 +15,8 @@ typedef int (Motorola68000Private::*ExecutionPointer)(int, QString&, int);
 
 struct DecodeEntry {
    public:
-      quint16 signature;
       quint16 mask;
+      quint16 signature;
       ExecutionPointer execute;
 };
 
@@ -27,24 +30,6 @@ struct RegisterData {
 typedef uint32_t Register;
 
 class Motorola68000Private {
-   public:
-      int               tickCount;
-      MemoryBus*        bus;
-
-      QVector<Register>  registerData;
-
-      // FPU
-      QVector<double>   floatingPointRegister;
-      quint32           fpcr;
-      quint32           fpsr;
-      quint32           fpiar;
-
-   public:
-      static RegisterData        registerInfo[];
-
-      static DecodeEntry         decodeTable[];
-      ExecutionPointer*       decodeCacheTable;
-
    public:
       enum ExecutionResult {
          EXECUTE_OK,
@@ -62,9 +47,9 @@ class Motorola68000Private {
       };
 
       enum Size {
-         BYTE,
-         WORD,
-         LONG,
+         BYTE = 0,
+         WORD = 1,
+         LONG = 2,
       };
 
       enum RegisterIndex {
@@ -89,6 +74,57 @@ class Motorola68000Private {
          T_FLAG   = 0x8000
       };
 
+      enum Operation {
+         ADDITION,
+         SUBTRACTION,
+         OTHER
+      };
+
+      struct PendingInterrupt {
+         public:
+            long level;
+            Device* device;
+
+         public:
+            PendingInterrupt(long l, Device* device) : level(l), device(device) {}
+
+            bool operator==(const PendingInterrupt& a) {
+               return level == a.level && device == a.device;
+            }
+
+            struct Compare {
+                  bool operator()(const PendingInterrupt& a, const PendingInterrupt& b) {
+                     return a.level > b.level;
+                  }
+            };
+      };
+
+   public:
+      int                  currentTicks;
+      bool                 disabled;
+      MemoryBus*           bus;
+
+      QVector<Register>    registerData;
+
+      bool                 tracing;
+      State                state;
+
+      // FPU
+      QVector<double>      floatingPointRegister;
+      quint32              fpcr;
+      quint32              fpsr;
+      quint32              fpiar;
+
+      std::priority_queue<PendingInterrupt,
+         std::vector<PendingInterrupt>,
+         PendingInterrupt::Compare> pendingInterrupts;
+
+   public:
+      static RegisterData        registerInfo[];
+
+      static DecodeEntry         decodeTable[];
+      ExecutionPointer*          decodeCacheTable;
+
    public:
       Motorola68000Private(Motorola68000* q);
 
@@ -100,7 +136,17 @@ class Motorola68000Private {
       int peek(quint32 address, unsigned int &value, int size);
       int poke(quint32 address, unsigned int value, int size);
 
+      int push(int stackRegister, unsigned int value, int size);
+      int pop(int stackRegister, unsigned int &value, int size);
+
+      int computeEffectiveAddress(quint32& address, int &in_register, QString& traceRecord, int mode_register, int size, bool trace);
+      unsigned int signExtend(unsigned int value, int size);
+
+      void setConditionCodes(unsigned int src, unsigned int dest, unsigned int result, int size, int operation, int mask);
+      int checkConditionCodes(int code, QString& traceRecord, int trace);
+
       int processException(int vector);
+      int handleInterrupts(bool &handleFlag);
 
    public:
       int ExecuteABCD(int opcode, QString& traceRecord, int trace);
@@ -159,7 +205,7 @@ class Motorola68000Private {
       int ExecuteMULU(int opcode, QString& traceRecord, int trace);
       int ExecuteNBCD(int opcode, QString& traceRecord, int trace);
       int ExecuteNEG(int opcode, QString& traceRecord, int trace);
-      int ExecuteNEGX(int opcode, QString description, int trace);
+      int ExecuteNEGX(int opcode, QString& traceRecord, int trace);
       int ExecuteNOP(int opcode, QString& traceRecord, int trace);
       int ExecuteNOT(int opcode, QString& traceRecord, int trace);
       int ExecuteOR(int opcode, QString& traceRecord, int trace);

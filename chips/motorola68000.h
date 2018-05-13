@@ -5,6 +5,8 @@
 
 #include <memorybus.h>
 
+class Device;
+
 class Motorola68000Private;
 class Motorola68000 : public QObject
 {
@@ -15,9 +17,18 @@ class Motorola68000 : public QObject
       // Setup
       void  attachBus(MemoryBus* bus);
 
+      // Options
+      void  setTracing(bool tracing);
+      bool  tracing() const;
+
       // Hardware functions
+      void  setDisabled(bool disabled);
       int   clock(int ticks);
       void  reset();
+      void  interruptRequest(Device* device, int level);
+      void  clearInterrupt(Device* device, int level);
+
+      quint32  programCounter() const;
 
    signals:
 
