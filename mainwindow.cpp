@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "vramview.h"
 
 #include "chips/vdp.h"
 
@@ -36,4 +37,14 @@ void MainWindow::emulateFrame()
 void MainWindow::updateFrame(QImage* frame)
 {
    ui->label->setPixmap(QPixmap::fromImage(*frame));
+}
+
+void MainWindow::on_actionView_VRAM_triggered()
+{
+   VRAMView* view = new VRAMView(this);
+   view->setVDP(this->emulator->vdp());
+   view->setModal(true);
+   view->show();
+
+   connect(view, &VRAMView::finished, view, &VRAMView::deleteLater);
 }

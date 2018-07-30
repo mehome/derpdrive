@@ -36,6 +36,26 @@
      <height>22</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuEmulator">
+    <property name="title">
+     <string>Emulator</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuDebug">
+    <property name="title">
+     <string>Debug</string>
+    </property>
+    <addaction name="actionView_CRAM"/>
+    <addaction name="actionView_VRAM"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEmulator"/>
+   <addaction name="menuDebug"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -46,6 +66,16 @@
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <action name="actionView_CRAM">
+   <property name="text">
+    <string>View CRAM</string>
+   </property>
+  </action>
+  <action name="actionView_VRAM">
+   <property name="text">
+    <string>View VRAM</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources/>

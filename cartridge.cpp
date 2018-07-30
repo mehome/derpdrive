@@ -290,17 +290,17 @@ int Cartridge::peek(quint32 address, quint8& val) {
    Q_D(Cartridge);
 
    // ROM access
-   if (address >= d->header->romStart && address <= d->header->romEnd-2) {
+   if (address >= d->header->romStart && address <= d->header->romEnd) {
       val = d->romData[address] - d->header->romStart;
       return NO_ERROR;
 
    // RAM access
-   } else if (address >= d->header->ramStart && address <= d->header->ramEnd-2) {
+   } else if (address >= d->header->ramStart && address <= d->header->ramEnd) {
       val = d->ramData[address - d->header->ramStart];
       return NO_ERROR;
 
    // SRAM access
-   } else if (address >= d->header->sramStart && address <= d->header->sramEnd-2) {
+   } else if (address >= d->header->sramStart && address <= d->header->sramEnd) {
       val = d->sramData[address - d->header->sramStart];
       return NO_ERROR;
    }

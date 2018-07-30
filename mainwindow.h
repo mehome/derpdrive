@@ -24,6 +24,9 @@ class MainWindow : public QMainWindow
       void emulateFrame();
       void updateFrame(QImage* frame);
 
+   private slots:
+      void on_actionView_VRAM_triggered();
+
    private:
       Ui::MainWindow *ui;
       QTimer*         frameTimer;

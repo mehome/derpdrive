@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QPainter>
 #include <QtEndian>
+#include <signal.h>
 
 enum Register {
    ModeRegister1     = 0x00,
@@ -134,12 +135,15 @@ class VDPPrivate {
 
       quint32 dmaLength;
       quint32 dmaSource;
-      quint8 dmaType;
+      quint8  dmaType;
+      bool    dmaDataWait;
+      quint16 dmaFillWord;
 
       QImage frame;
       QImage planeA;
       QImage planeB;
       QImage windowPlane;
+      QImage spritePlane;
 
    public:
       explicit VDPPrivate(VDP* q)
@@ -156,6 +160,7 @@ class VDPPrivate {
          this->planeA = this->frame;
          this->planeB = this->frame;
          this->windowPlane = this->frame;
+         this->spritePlane = this->frame;
       }
 
       void handleCommand() {
@@ -199,13 +204,8 @@ class VDPPrivate {
 
                this->writePending = false;
 
-               if ((this->registerData[ModeRegister2] & MODE2_M1) && this->cpu->programCounter() <= 0x03FFFFF) {
-                  qDebug() << "DISABLE MOTOROLA";
-                  this->cpu->setDisabled(true);
-               }
-
                this->prepareMemoryTransfer();
-               //qDebug() << "VDP COMMAND" << QString::number(this->command0, 16) << QString::number(this->command1, 16);
+               qDebug() << "VDP COMMAND" << QString::number(this->command0, 16) << QString::number(this->command1, 16);
             }
          }
       }
@@ -214,38 +214,38 @@ class VDPPrivate {
          if (this->command != PENDING || this->dmaActive)
             return;
 
-         //qDebug() << "VDP CMD BYTE" << QString::number(this->commandByte, 16);
+         qDebug() << "VDP CMD BYTE" << QString::number(this->commandByte, 16);
 
          this->addressRegister = this->commandData;
 
          switch (this->commandByte & 0x0F) {
             case 0x0:
-               //qDebug() << "VDP VRAM READ" << this->commandData;
+               qDebug() << "VDP VRAM READ" << this->commandData;
                this->command = VRAM_READ;
                break;
 
             case 0x1:
-               //qDebug() << "VDP VRAM WRITE" << this->commandData;
+               qDebug() << "VDP VRAM WRITE" << this->commandData;
                this->command = VRAM_WRITE;
                break;
 
             case 0x3:
-               //qDebug() << "VDP CRAM WRITE" << this->commandData;
+               qDebug() << "VDP CRAM WRITE" << this->commandData;
                this->command = CRAM_WRITE;
                break;
 
             case 0x4:
-               //qDebug() << "VDP VSRAM READ" << this->commandData;
+               qDebug() << "VDP VSRAM READ" << this->commandData;
                this->command = VSRAM_READ;
                break;
 
             case 0x5:
-               //qDebug() << "VDP VSRAM WRITE" << this->commandData;
+               qDebug() << "VDP VSRAM WRITE" << this->commandData;
                this->command = VSRAM_WRITE;
                break;
 
             case 0x8:
-               //qDebug() << "VDP CRAM READ" << this->commandData;
+               qDebug() << "VDP CRAM READ" << this->commandData;
                this->command = CRAM_READ;
                break;
 
@@ -270,6 +270,8 @@ class VDPPrivate {
 
             if (!(this->dmaType & 0x2)) {
                this->dmaSource |= ((quint8)this->registerData[DMASource2] & 0x40) << 16;
+            } else {
+               this->dmaDataWait = true;
             }
 
             dmaSource <<= 1;
@@ -278,6 +280,19 @@ class VDPPrivate {
                dmaLength = 0x1FFFF;
             else if (dmaLength == 0x7FFF)
                dmaLength = 0xFFFF;
+
+            if ((this->command == CRAM_READ || this->command == CRAM_WRITE) && this->dmaLength > (64 * 2))
+               this->dmaLength = (64 * 2);
+
+            if ((this->registerData[ModeRegister2] & MODE2_M1) && this->cpu->programCounter() <= 0x03FFFFF && !this->dmaDataWait) {
+               qDebug() << "DISABLE MOTOROLA";
+               this->cpu->setDisabled(true);
+            }
+
+            qDebug() << "DMA Length" << QString::number(dmaLength, 16);
+            qDebug() << "DMA Source" << QString::number(dmaSource, 16);
+            qDebug() << "DMA Dest" << QString::number(this->addressRegister, 16);
+            qDebug() << "DMA Type" << QString::number(dmaType, 16);
          }
       }
 
@@ -311,11 +326,11 @@ class VDPPrivate {
 
       }
 
-      inline quint32 readColor(quint8 index) {
+      inline quint32 readColor(quint8 index) const {
          return this->readColor(false, (index & 0x30) >> 4, (index & 0xF));
       }
 
-      inline quint32 readColor(bool priority, int row, int cell) {
+      inline quint32 readColor(bool priority, int row, int cell) const {
          if (cell == 0)
             return 0x01000000;
 
@@ -328,8 +343,11 @@ class VDPPrivate {
          return (priority ? 0xFF000000 : 0x0) | r << 16 | g << 8 | b;
       }
 
-      void blitCharacter(QImage* buffer, quint16 address, int palette, bool priority, bool flipH, bool flipV, int x, int y, int w, int h) {
+      void blitCharacter(QImage* buffer, quint16 address, int palette, bool priority, bool flipH, bool flipV, int x, int y, int w, int h) const {
          quint8* art = (quint8*)(this->vram.data() + address);
+
+         if(!art)
+            raise(SIGINT);
 
          if (y > buffer->height() || x > buffer->width())
             return;
@@ -397,6 +415,11 @@ class VDPPrivate {
                address = (this->registerData[PlaneBNameTable] & 0x7) << 13;
                scrollOffset = 2;
                break;
+
+            case WINDOWPLANE:
+               buffer = &this->windowPlane;
+               address = (this->registerData[WindowNameTable] & 0x3E) << 10;
+               break;
          }
 
          if (plane == PLANEA || plane == PLANEB) {
@@ -404,7 +427,8 @@ class VDPPrivate {
             hscroll = qFromBigEndian(*(qint16*)(this->vram.data() + hscrollAddress + scrollOffset));
             vscroll = qFromBigEndian(*(qint16*)(this->vsram.data() + scrollOffset));
          } else if (plane == WINDOWPLANE) {
-
+            hscroll = (this->registerData[WindowPlaneHPos] & 0x1F) * (this->registerData[WindowPlaneHPos] & 0x80) ? -1 : 1;
+            vscroll = (this->registerData[WindowPlaneVPos] & 0x1F) * (this->registerData[WindowPlaneVPos] & 0x80) ? -1 : 1;
          }
 
          int screenWidth = buffer->width();
@@ -436,6 +460,10 @@ class VDPPrivate {
                this->blitCharacter(buffer, artIndex, palletteLine, entry & 0x8000, entry & 0x800, entry & 0x1000, x * 8 + (hscroll % 8), y * 8 - (vscroll % 8), 8, 8);
             }
          }
+      }
+
+      void drawSprites() {
+
       }
 
    private:
@@ -495,18 +523,13 @@ int VDP::clock(int cycles)
       if (this->interruptPending())
          this->clearInterrupt();
 
-      if (d->dmaActive) {
-         /*qDebug() << "DMA Length" << QString::number(dmaLength, 16);
-         qDebug() << "DMA Source" << QString::number(dmaSource, 16);
-         qDebug() << "DMA Dest" << QString::number(d->addressRegister, 16);
-         qDebug() << "DMA Type" << QString::number(dmaType, 16);*/
-
+      if (d->dmaActive && !d->dmaDataWait) {
          //while(true) {
          if (d->dmaLength) {
             d->dmaLength--;
             d->dmaLength = d->dmaLength & 0x1FFFF;
 
-            QByteArray* target = 0;
+            QByteArray* target = nullptr;
 
             switch(d->command) {
                case VSRAM_WRITE:
@@ -522,17 +545,25 @@ int VDP::clock(int cycles)
                   break;
             }
 
-            quint8 b0, b1;
+            if (d->dmaType != 0x2) {
+               quint8 b0, b1;
 
-            d->bus->peek(d->dmaSource, b0);
-            (*target)[d->addressRegister] = b0;
+               d->bus->peek(d->dmaSource, b0);
+               (*target)[d->addressRegister] = b0;
 
-            d->bus->peek(d->dmaSource + 1, b1);
-            (*target)[d->addressRegister + 1] = b1;
+               d->bus->peek(d->dmaSource + 1, b1);
+               (*target)[d->addressRegister + 1] = b1;
+
+               d->dmaSource += 2;
+            } else {
+               (*target)[d->addressRegister] = (d->dmaFillWord & 0xFF00) >> 8;
+               (*target)[d->addressRegister + 1] = d->dmaFillWord & 0x00FF;
+            }
 
             d->addressRegister += d->registerData[AutoIncrementValue];
-            d->dmaSource += 2;
          } else {
+            emit this->dmaFinished();
+
             d->command = NONE;
             d->dmaActive = false;
             d->cpu->setDisabled(false);
@@ -562,6 +593,7 @@ int VDP::clock(int cycles)
 
             d->drawPlane(PLANEA, planeWidth, planeHeight);
             d->drawPlane(PLANEB, planeWidth, planeHeight);
+            d->drawPlane(WINDOWPLANE, 32, 32);
          }
 
 
@@ -580,14 +612,18 @@ int VDP::clock(int cycles)
             QRgb* frameBit = (QRgb*)d->frame.bits();
             QRgb* planeABit = (QRgb*)d->planeA.bits();
             QRgb* planeBBit = (QRgb*)d->planeB.bits();
+            QRgb* spriteBit = (QRgb*)d->spritePlane.bits();
             QRgb* windowBit = (QRgb*)d->windowPlane.bits();
 
             for(int b=0; b < pixels; b++) {
+               if (planeBBit[b] != 0x01000000 && ((planeBBit[b] & 0xFF000000) || (frameBit[b] & 0xFF000000) == (planeBBit[b] & 0xFF000000)))
+                  frameBit[b] = planeBBit[b];
+
                if (planeABit[b] != 0x01000000 && ((planeABit[b] & 0xFF000000) || (frameBit[b] & 0xFF000000) == (planeABit[b] & 0xFF000000)))
                   frameBit[b] = planeABit[b];
 
-               if (planeBBit[b] != 0x01000000 && ((planeBBit[b] & 0xFF000000) || (frameBit[b] & 0xFF000000) == (planeBBit[b] & 0xFF000000)))
-                  frameBit[b] = planeBBit[b];
+               if (spriteBit[b] != 0x01000000 && ((spriteBit[b] & 0xFF000000) || (frameBit[b] & 0xFF000000) == (spriteBit[b] & 0xFF000000)))
+                  frameBit[b] = spriteBit[b];
 
                if (windowBit[b] != 0x01000000 && ((windowBit[b] & 0xFF000000) || (frameBit[b] & 0xFF000000) == (windowBit[b] & 0xFF000000)))
                   frameBit[b] = windowBit[b];
@@ -659,6 +695,27 @@ void VDP::attachZ80(Z80* cpu)
    d->z80 = cpu;
 }
 
+const QByteArray VDP::cram() const
+{
+   Q_D(const VDP);
+
+   return d->cram;
+}
+
+const QByteArray VDP::vram() const
+{
+   Q_D(const VDP);
+
+   return d->vram;
+}
+
+void VDP::debugBlit(QImage* buffer, quint16 address, int palette, int x, int y) const
+{
+   Q_D(const VDP);
+
+   d->blitCharacter(buffer, address, palette, false, false, false, x, y, 8, 8);
+}
+
 int VDP::peek(quint32 address, quint8& val)
 {
    Q_D(VDP);
@@ -710,15 +767,21 @@ int VDP::poke(quint32 address, quint8 val)
          d->dataWord &= ~0x00FF;
          d->dataWord |= val;
 
-         d->prepareMemoryTransfer();
+         if (!d->dmaDataWait)
+            d->prepareMemoryTransfer();
          return NO_ERROR;
 
       case 0x01:
          d->dataWord &= ~0xFF00;
          d->dataWord |= val << 8;
 
-         d->prepareMemoryTransfer();
-         d->performDirectWrite(d->dataWord);
+         if (!d->dmaDataWait) {
+            d->prepareMemoryTransfer();
+            d->performDirectWrite(d->dataWord);
+         } else {
+            d->dmaFillWord = d->dataWord;
+            d->dmaDataWait = false;
+         }
          return NO_ERROR;
 
       case 0x02:

@@ -6,6 +6,8 @@
 #include <QVector>
 #include <QtEndian>
 
+#include <signal.h>
+
 Motorola68000::Motorola68000(QObject *parent)
    : QObject(parent),
      d_ptr(new Motorola68000Private(this))
@@ -60,7 +62,7 @@ int Motorola68000::clock(int ticks)
          return 0;
       }
 
-      unsigned int opcode;
+      unsigned int opcode = 0;
       int      status = Motorola68000Private::EXECUTE_OK;
 
       if (d->tracing) {
@@ -119,8 +121,11 @@ int Motorola68000::clock(int ticks)
          } else if (status == Motorola68000Private::EXECUTE_ILLEGAL_INSTRUCTION) {
             traceMessage += " !!Illegal instruction";
          }
-      } else if(d->tracing) {
-         traceMessage += "CPU is halted";
+      } else {
+         if(d->tracing)
+            traceMessage += "CPU is halted";
+
+         d->currentTicks = 0;
       }
 
       if (d->tracing)

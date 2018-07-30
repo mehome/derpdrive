@@ -158,10 +158,14 @@ Emulator::Emulator(QObject *parent)
    d->vdp->attachCpu(d->cpu);
 
    // Load ROM
-   d->cartridge->load("roms/GAMEHUT.BIN");
+   d->cartridge->load("roms/VDPFIFOTesting.bin");
+   //d->cartridge->load("roms/GAMEHUT.BIN");
    //d->cartridge->load("roms/IMAGES.BIN");
+   //d->cartridge->load("roms/Sonic the Hedgehog (USA, Europe).md");
    //d->cartridge->load("roms/Aladdin (Europe).md");
    //d->cartridge->load("roms/Star Trek - Deep Space Nine - Crossroads of Time (Europe).md");
+   //d->cartridge->load("roms/Mickey Mania - The Timeless Adventures of Mickey Mouse (Europe).md");
+   //d->cartridge->load("roms/HDRV_Genesis_Test_v1_4.bin");
 }
 
 Emulator::~Emulator()
@@ -173,7 +177,7 @@ void Emulator::reset()
 {
    Q_D(Emulator);
 
-   d->cpu->setTracing(false);
+   d->cpu->setTracing(true);
    d->cpu->reset();
 }
 

@@ -38,7 +38,8 @@ SOURCES += \
     chips/vdp.cpp \
     device.cpp \
     chips/z80.cpp \
-    chips/z80/z80emu.cpp
+    chips/z80/z80emu.cpp \
+    vramview.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -61,7 +62,9 @@ HEADERS += \
     extensionport.h \
     chips/vdp.h \
     device.h \
-    chips/z80.h
+    chips/z80.h \
+    vramview.h
 
 FORMS += \
-        mainwindow.ui
+        mainwindow.ui \
+    vramview.ui

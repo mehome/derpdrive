@@ -34,8 +34,14 @@ class VDP
       void           attachCpu(Motorola68000* cpu);
       void           attachZ80(Z80* cpu);
 
+      const QByteArray  cram() const;
+      const QByteArray  vram() const;
+
+      void           debugBlit(QImage* buffer, quint16 address, int palette, int x, int y) const;
+
    signals:
       void           frameUpdated(QImage* frame);
+      void           dmaFinished();
 
    public slots:
 
