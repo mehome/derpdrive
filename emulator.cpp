@@ -9,6 +9,7 @@
 #include <chips/motorola68000.h>
 #include <chips/z80.h>
 #include <chips/vdp.h>
+#include <chips/ym2612.h>
 #include <cartridge.h>
 #include <ram.h>
 #include <systemversion.h>
@@ -25,6 +26,7 @@ class EmulatorPrivate {
       Z80*           z80;
       Ram*           ram;
       Ram*           soundRam;
+      YM2612*        ym2612;
       SystemVersion* systemVersion;
       Controller*    controllerA;
       Controller*    controllerB;
@@ -72,6 +74,7 @@ Emulator::Emulator(QObject *parent)
    d->cpu         = new Motorola68000(this);
    d->z80         = new Z80(this);
    d->vdp         = new VDP(this);
+   d->ym2612      = new YM2612(this);
    d->cartridge   = new Cartridge(this);
    d->systemVersion = new SystemVersion(this);
    d->controllerA = new Controller(this);
@@ -95,8 +98,15 @@ Emulator::Emulator(QObject *parent)
    deviceHandle = d->bus->attachDevice(d->soundRam);
    d->bus->wire(0xA00000, 0xA01FFF, 0x0, deviceHandle);
 
+   deviceHandle = d->bus->attachDevice(d->ym2612);
+   d->bus->wire(0xA04000, 0xA04003, 0x0, deviceHandle);
+
+   // Setup Z80 Bus
    deviceHandle = d->z80Bus->attachDevice(d->soundRam);
-   d->z80Bus->wire(0x0000, 0x01FFF, 0x0, deviceHandle);
+   d->z80Bus->wire(0x0000, 0x1FFF, 0x0, deviceHandle);
+
+   deviceHandle = d->z80Bus->attachDevice(d->ym2612);
+   d->z80Bus->wire(0x4000, 0x4003, 0x0, deviceHandle);
 
    // Setup Hardware version
    deviceHandle = d->bus->attachDevice(d->systemVersion);
@@ -157,15 +167,6 @@ Emulator::Emulator(QObject *parent)
    // Setup Interrupt Lanes
    d->vdp->attachCpu(d->cpu);
 
-   // Load ROM
-   d->cartridge->load("roms/VDPFIFOTesting.bin");
-   //d->cartridge->load("roms/GAMEHUT.BIN");
-   //d->cartridge->load("roms/IMAGES.BIN");
-   //d->cartridge->load("roms/Sonic the Hedgehog (USA, Europe).md");
-   //d->cartridge->load("roms/Aladdin (Europe).md");
-   //d->cartridge->load("roms/Star Trek - Deep Space Nine - Crossroads of Time (Europe).md");
-   //d->cartridge->load("roms/Mickey Mania - The Timeless Adventures of Mickey Mouse (Europe).md");
-   //d->cartridge->load("roms/HDRV_Genesis_Test_v1_4.bin");
 }
 
 Emulator::~Emulator()
@@ -177,7 +178,7 @@ void Emulator::reset()
 {
    Q_D(Emulator);
 
-   d->cpu->setTracing(true);
+   d->cpu->setTracing(false);
    d->cpu->reset();
 }
 
@@ -208,7 +209,14 @@ void Emulator::setClockRate(long clock)
 {
    Q_D(Emulator);
 
-   d->masterClockRate = clock;
+    d->masterClockRate = clock;
+}
+
+Motorola68000 *Emulator::mainCpu() const
+{
+    Q_D(const Emulator);
+
+    return d->cpu;
 }
 
 VDP*Emulator::vdp() const

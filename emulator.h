@@ -4,6 +4,7 @@
 #include <QObject>
 
 class VDP;
+class Motorola68000;
 
 class EmulatorPrivate;
 class Emulator : public QObject
@@ -18,6 +19,7 @@ class Emulator : public QObject
 
       void setClockRate(long clock);
 
+      Motorola68000* mainCpu() const;
       VDP* vdp() const;
 
    signals:

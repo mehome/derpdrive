@@ -44,9 +44,9 @@ int SystemVersion::peek(quint32 address, quint8& val)
    if (address == 0x0) {
       val = 0;
    } else {
-      val = d->overseasModel ? 1 << 7 : 0 |
-            d->palMode ? 1 << 6 : 0 |
-            d->fddConnected ? 1 << 5 : 0 |
+      val = (d->overseasModel ? 1 << 7 : 0) |
+            (d->palMode ? 1 << 6 : 0) |
+            (d->fddConnected ? 1 << 5 : 0) |
             (d->megadriveVersion & 0x0F);
    }
 

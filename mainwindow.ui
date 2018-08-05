@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>860</width>
-    <height>662</height>
+    <width>658</width>
+    <height>551</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,6 +17,12 @@
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
      <widget class="QLabel" name="label">
+      <property name="minimumSize">
+       <size>
+        <width>640</width>
+        <height>480</height>
+       </size>
+      </property>
       <property name="text">
        <string>TextLabel</string>
       </property>
@@ -32,8 +38,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>860</width>
-     <height>22</height>
+     <width>658</width>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -52,6 +58,12 @@
     </property>
     <addaction name="actionView_CRAM"/>
     <addaction name="actionView_VRAM"/>
+    <addaction name="separator"/>
+    <addaction name="actionDebugger_M68K"/>
+    <addaction name="actionDebugger_Z80"/>
+    <addaction name="separator"/>
+    <addaction name="actionReset_M68K_2"/>
+    <addaction name="actionReset_Z80"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEmulator"/>
@@ -74,6 +86,31 @@
   <action name="actionView_VRAM">
    <property name="text">
     <string>View VRAM</string>
+   </property>
+  </action>
+  <action name="actionDebugger_M68K">
+   <property name="text">
+    <string>Debugger (M68K)</string>
+   </property>
+  </action>
+  <action name="actionDebugger_Z80">
+   <property name="text">
+    <string>Debugger (Z80)</string>
+   </property>
+  </action>
+  <action name="actionReset_M68K">
+   <property name="text">
+    <string>Reset M68K</string>
+   </property>
+  </action>
+  <action name="actionReset_Z80">
+   <property name="text">
+    <string>Reset Z80</string>
+   </property>
+  </action>
+  <action name="actionReset_M68K_2">
+   <property name="text">
+    <string>Reset M68K</string>
    </property>
   </action>
  </widget>

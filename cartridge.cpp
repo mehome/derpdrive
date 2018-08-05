@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QtEndian>
 
+#pragma pack(push, 1)
 struct CartridgeHeader {
       quint32  vectors           [0x40];
       char     consoleName       [0x10];
@@ -26,6 +27,7 @@ struct CartridgeHeader {
       char     memo              [0x28];
       char     country           [0x0F];
 };
+#pragma pack(pop)
 
 class CartridgePrivate {
    public:
@@ -274,7 +276,7 @@ void Cartridge::load(QString path)
    d->unload();
 
    // Detect rom format
-   if (path.right(4).toLower() == ".bin") {
+   if (path.right(4).toLower() == ".bin" || path.right(4).toLower() == ".md" || path.right(4).toLower() == ".gen") {
       d->readBIN(path);
    } else if (path.right(3).toLower() == ".md") {
       d->readMD(path);
@@ -317,13 +319,11 @@ int Cartridge::poke(quint32 address, quint8 val) {
    // RAM access
    if (address >= d->header->ramStart && address <= d->header->ramEnd-2) {
       d->ramData[address - d->header->ramStart] = val;
-      return NO_ERROR;
 
    // SRAM access
    } else if (address >= d->header->sramStart && address <= d->header->sramEnd-2) {
       d->sramData[address - d->header->sramStart] = val;
-      return NO_ERROR;
    }
 
-   return BUS_ERROR;
+   return NO_ERROR;
 }

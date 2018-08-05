@@ -5,6 +5,7 @@
 #-------------------------------------------------
 
 QT       += core gui
+#CONFIG   += console
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -39,7 +40,9 @@ SOURCES += \
     device.cpp \
     chips/z80.cpp \
     chips/z80/z80emu.cpp \
-    vramview.cpp
+    vramview.cpp \
+    m68kdebugger.cpp \
+    chips/ym2612.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -63,8 +66,11 @@ HEADERS += \
     chips/vdp.h \
     device.h \
     chips/z80.h \
-    vramview.h
+    vramview.h \
+    m68kdebugger.h \
+    chips/ym2612.h
 
 FORMS += \
         mainwindow.ui \
-    vramview.ui
+    vramview.ui \
+    m68kdebugger.ui

@@ -9,6 +9,7 @@ namespace Ui {
    class MainWindow;
 }
 
+class M68KDebugger;
 class MainWindow : public QMainWindow
 {
       Q_OBJECT
@@ -26,10 +27,14 @@ class MainWindow : public QMainWindow
 
    private slots:
       void on_actionView_VRAM_triggered();
+      void on_actionDebugger_M68K_triggered();
+      void on_actionReset_Z80_triggered();
+      void on_actionReset_M68K_2_triggered();
 
-   private:
-      Ui::MainWindow *ui;
-      QTimer*         frameTimer;
+private:
+      Ui::MainWindow*   ui;
+      QTimer*           frameTimer;
+      M68KDebugger*     m68kdebugger;
 };
 
 #endif // MAINWINDOW_H
