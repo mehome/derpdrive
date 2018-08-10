@@ -6,6 +6,8 @@
 #include <device.h>
 #include <QPixmap>
 
+#include <SDL2/SDL.h>
+
 class Motorola68000;
 class Z80;
 
@@ -18,7 +20,7 @@ class VDP
       Q_OBJECT
 
    public:
-      explicit VDP(QObject *parent = nullptr);
+      explicit VDP(SDL_Renderer* renderer, QObject *parent = nullptr);
       ~VDP();
 
       void           attachBus(MemoryBus* bus);
@@ -37,13 +39,18 @@ class VDP
       const QByteArray  cram() const;
       const QByteArray  vram() const;
 
+      void           debugCRamBlit(QImage* buffer);
       void           debugBlit(QImage* buffer, quint16 address, int palette, int x, int y) const;
 
    signals:
-      void           frameUpdated(QImage* frame);
+      void           frameUpdated(void* frame);
       void           dmaFinished();
 
    public slots:
+      void           setPlaneA(bool enabled);
+      void           setPlaneB(bool enabled);
+      void           setWindowPlane(bool enabled);
+      void           setSprites(bool enabled);
 
    private:
       VDPPrivate* d_ptr;

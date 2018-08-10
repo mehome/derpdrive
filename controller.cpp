@@ -1,5 +1,8 @@
 #include "controller.h"
 
+#include <QDebug>
+#include <SDL2/SDL.h>
+
 class ControllerPrivate {
       // Register
       quint16 data;
@@ -29,7 +32,7 @@ Controller::Controller(QObject *parent)
    : QObject(parent),
      d_ptr(new ControllerPrivate(this))
 {
-
+    qDebug() << "Controller count" << SDL_NumJoysticks();
 }
 
 Controller::~Controller()

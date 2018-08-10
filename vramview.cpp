@@ -59,5 +59,12 @@ void VRAMView::render()
    }
 
    scene->addPixmap(QPixmap::fromImage(vramImage));
+
+   QImage cramImage(16, 4, QImage::Format_ARGB32);
+   this->vdp->debugCRamBlit(&cramImage);
+
+   cramImage = cramImage.scaled(ui->cramImage->width(), ui->cramImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+
+   ui->cramImage->setPixmap(QPixmap::fromImage(cramImage));
 }
 

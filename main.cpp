@@ -1,7 +1,10 @@
-#include "mainwindow.h"
 #include <QApplication>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <SDL2/SDL.h>
+
+#include "mainwindow.h"
 
 void debugOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
     Q_UNUSED(context);
@@ -30,9 +33,17 @@ int main(int argc, char *argv[])
 {
    // qInstallMessageHandler(debugOutput);
 
+
     QApplication a(argc, argv);
+
+    SDL_Init(SDL_INIT_VIDEO);
+
     MainWindow w;
     w.show();
 
-    return a.exec();
+    int result = a.exec();
+
+    SDL_Quit();
+
+    return result;
 }

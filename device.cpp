@@ -45,10 +45,10 @@ void Device::interruptRequest(int level)
    Q_D(Device);
 
    // If no interrupt is pending, then request one
-   if (!d->interruptPending) {
+   //if (!d->interruptPending) {
       d->interruptPending = true;
       d->cpu->interruptRequest(this, level);
-   }
+   //}
 }
 
 int Device::interruptAcknowledge(unsigned int level)

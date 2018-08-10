@@ -1,24 +1,24 @@
 #include "ram.h"
 
 class RamPrivate {
-   public:
-      QByteArray data;
+public:
+    QByteArray data;
 
-   public:
-      RamPrivate(Ram* q)
-         : q_ptr(q)
-      {}
+public:
+    RamPrivate(Ram* q)
+        : q_ptr(q)
+    {}
 
-   private:
-      Ram* q_ptr;
-      Q_DECLARE_PUBLIC(Ram)
+private:
+    Ram* q_ptr;
+    Q_DECLARE_PUBLIC(Ram)
 };
 
 Ram::Ram(int size, QObject *parent)
-   : QObject(parent),
-     d_ptr(new RamPrivate(this))
+    : QObject(parent),
+      d_ptr(new RamPrivate(this))
 {
-   Q_D(Ram);
+    Q_D(Ram);
 
     d->data.resize(size);
     d->data.fill(0);
@@ -31,16 +31,16 @@ Ram::~Ram()
 
 int Ram::peek(quint32 address, quint8& val)
 {
-   Q_D(Ram);
+    Q_D(Ram);
 
-   val = d->data[address];
-   return NO_ERROR;
+    val = d->data[address];
+    return NO_ERROR;
 }
 
 int Ram::poke(quint32 address, quint8 val)
 {
-   Q_D(Ram);
+    Q_D(Ram);
 
-   d->data[address] = val;
-   return NO_ERROR;
+    d->data[address] = val;
+    return NO_ERROR;
 }

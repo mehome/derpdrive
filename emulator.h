@@ -2,6 +2,7 @@
 #define EMULATOR_H
 
 #include <QObject>
+#include <SDL2/SDL.h>
 
 class VDP;
 class Motorola68000;
@@ -9,27 +10,32 @@ class Motorola68000;
 class EmulatorPrivate;
 class Emulator : public QObject
 {
-      Q_OBJECT
-   public:
-      explicit Emulator(QObject *parent = nullptr);
-      ~Emulator();
+    Q_OBJECT
+public:
+    explicit Emulator(SDL_Renderer* renderer, QObject *parent = nullptr);
+    ~Emulator();
 
-      void reset();
-      void emulate();
+    void reset();
+    void emulate();
 
-      void setClockRate(long clock);
+    bool loadCartridge(QString file);
 
-      Motorola68000* mainCpu() const;
-      VDP* vdp() const;
+    void setClockRate(long clock);
 
-   signals:
+    Motorola68000* mainCpu() const;
+    VDP* vdp() const;
 
-   public slots:
-      void reportFps();
+signals:
 
-   private:
-      EmulatorPrivate* d_ptr;
-      Q_DECLARE_PRIVATE(Emulator)
+public slots:
+    void reportFps();
+
+private slots:
+    void updateFpsCount();
+
+private:
+    EmulatorPrivate* d_ptr;
+    Q_DECLARE_PRIVATE(Emulator)
 };
 
 #endif // EMULATOR_H

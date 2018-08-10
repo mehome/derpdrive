@@ -46,6 +46,7 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionLoad_ROM"/>
    </widget>
    <widget class="QMenu" name="menuEmulator">
     <property name="title">
@@ -56,6 +57,15 @@
     <property name="title">
      <string>Debug</string>
     </property>
+    <widget class="QMenu" name="menuView">
+     <property name="title">
+      <string>View</string>
+     </property>
+     <addaction name="actionPlane_A"/>
+     <addaction name="actionPlane_B"/>
+     <addaction name="actionWindow_Plane"/>
+     <addaction name="actionSprites"/>
+    </widget>
     <addaction name="actionView_CRAM"/>
     <addaction name="actionView_VRAM"/>
     <addaction name="separator"/>
@@ -64,6 +74,8 @@
     <addaction name="separator"/>
     <addaction name="actionReset_M68K_2"/>
     <addaction name="actionReset_Z80"/>
+    <addaction name="separator"/>
+    <addaction name="menuView"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEmulator"/>
@@ -111,6 +123,55 @@
   <action name="actionReset_M68K_2">
    <property name="text">
     <string>Reset M68K</string>
+   </property>
+  </action>
+  <action name="actionLoad_ROM">
+   <property name="text">
+    <string>Load ROM</string>
+   </property>
+  </action>
+  <action name="actionPlane_A">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Plane A</string>
+   </property>
+  </action>
+  <action name="actionPlane_B">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Plane B</string>
+   </property>
+  </action>
+  <action name="actionWindow_Plane">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Window Plane</string>
+   </property>
+  </action>
+  <action name="actionSprites">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Sprites</string>
    </property>
   </action>
  </widget>
