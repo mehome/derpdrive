@@ -1,0 +1,6 @@
+roms/
+*.obj
+*.bin
+*.exe
+*.log
+*.user*
