@@ -3,6 +3,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QDebug>
+#include <QElapsedTimer>
 
 #include <config.h>
 #include <memorybus.h>
@@ -15,6 +16,7 @@
 #include <systemversion.h>
 #include <controller.h>
 #include <extensionport.h>
+#include <memorybank.h>
 
 class EmulatorPrivate {
 public:
@@ -31,8 +33,11 @@ public:
     Controller*    controllerA;
     Controller*    controllerB;
     ExtensionPort* extensionPort;
+    MemoryBank*     memoryBank;
     QTimer*        fpsTimer;
     int            cyclesCount;
+    int            ymCycles;
+    int            z80Cycles;
     int            currentCycles;
     int            fpsCount;
     int            currentFps;
@@ -41,15 +46,21 @@ public:
     long           seventhCycleCount;
     long           fifteenthCycleCount;
 
+    QElapsedTimer   cycleTime;
+    double          accumulator;
+
 public:
     EmulatorPrivate(Emulator* q)
         : q_ptr(q),
           cyclesCount(0),
+          ymCycles(0),
+          z80Cycles(0),
           masterClockRate(0),
           fpsCount(0),
           currentFps(0),
           seventhCycleCount(0),
-          fifteenthCycleCount(0)
+          fifteenthCycleCount(0),
+          accumulator(0)
     {
 
     }
@@ -81,9 +92,10 @@ Emulator::Emulator(SDL_Renderer* renderer, QObject *parent)
     d->ym2612      = new YM2612(this);
     d->cartridge   = new Cartridge(this);
     d->systemVersion = new SystemVersion(this);
-    d->controllerA = new Controller(this);
-    d->controllerB = new Controller(this);
+    d->controllerA = new Controller(0, this);
+    d->controllerB = new Controller(1, this);
     d->extensionPort = new ExtensionPort(this);
+    d->memoryBank   = new MemoryBank(this);
 
     connect(d->vdp, &VDP::frameUpdated, this, &Emulator::updateFpsCount);
 
@@ -105,19 +117,25 @@ Emulator::Emulator(SDL_Renderer* renderer, QObject *parent)
     d->bus->wire(0x000000, 0x3FFFFF, 0x0,       deviceHandle);
     d->bus->wire(0xA130F0, 0xA13100, 0xA130F0,  deviceHandle);   // SSFII-style bank switching
 
-    // Setup Z80 Area
-    deviceHandle = d->bus->attachDevice(d->soundRam);
-    d->bus->wire(0xA00000, 0xA01FFF, 0x0, deviceHandle);
-
-    deviceHandle = d->bus->attachDevice(d->ym2612);
-    d->bus->wire(0xA04000, 0xA04003, 0x0, deviceHandle);
-
     // Setup Z80 Bus
+    d->memoryBank->attachMemory(d->bus);
+
     deviceHandle = d->z80Bus->attachDevice(d->soundRam);
     d->z80Bus->wire(0x0000, 0x1FFF, 0x0, deviceHandle);
 
     deviceHandle = d->z80Bus->attachDevice(d->ym2612);
-    d->z80Bus->wire(0x4000, 0x4003, 0x0, deviceHandle);
+    for (int i=0x4000; i < 0x5FFF; i += 4)
+        d->z80Bus->wire(i, i+3, 0x4000, deviceHandle);
+
+    deviceHandle = d->z80Bus->attachDevice(d->memoryBank->controller());
+    d->z80Bus->wire(0x6000, 0x6000, 0x0, deviceHandle);
+
+    deviceHandle = d->z80Bus->attachDevice(d->memoryBank);
+    d->z80Bus->wire(0x8000, 0xFFFF, 0x0, deviceHandle);
+
+    // Setup Z80 Area
+    deviceHandle = d->bus->attachDevice(d->z80Bus);
+    d->bus->wire(0xA00000, 0xA0FFFF, 0x0, deviceHandle);
 
     // Setup Hardware version
     deviceHandle = d->bus->attachDevice(d->systemVersion);
@@ -192,21 +210,32 @@ void Emulator::reset()
     d->vdp->reset();
     d->cpu->reset();
     d->z80->reset();
+
+    d->cycleTime.start();
 }
 
 void Emulator::emulate()
 {
     Q_D(Emulator);
 
-    int cycles = 0;
+    double currentTime = (double)d->cycleTime.nsecsElapsed() / 1000.0;
+    d->cycleTime.start();
 
-    while(cycles < 1067040) {
+    d->accumulator += 53.203424 * currentTime;
+
+    SDL_GameControllerUpdate();
+    SDL_PumpEvents();
+
+    while(d->accumulator >= 420) {
         d->vdp->clock(105);
         d->cpu->clock(60); // 60
+        d->ym2612->clock(60);
         d->z80->clock(28); // 28
 
-        cycles += 420;
+        d->accumulator -= 420;
         d->cyclesCount += 420;
+        d->ymCycles += 60;
+        d->z80Cycles += 28;
     }
 
     // M86K = 1 / 7 (60/420)
@@ -254,8 +283,13 @@ VDP*Emulator::vdp() const
 void Emulator::reportFps() {
     Q_D(Emulator);
 
-    qDebug() << "Cycles:" << d->cyclesCount << "Fps:" << d->fpsCount;
+    qDebug() << "Master Clock:" << d->cyclesCount
+             << "YM2612:" << d->ymCycles
+             << "Z80:" << d->z80Cycles
+             << "Fps:" << d->fpsCount;
     d->cyclesCount = 0;
+    d->z80Cycles = 0;
+    d->ymCycles = 0;
     d->fpsCount = 0;
 }
 

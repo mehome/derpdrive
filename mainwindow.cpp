@@ -18,7 +18,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 
     this->frameTimer = new QTimer(this);
-    this->frameTimer->setInterval(9);
+    this->frameTimer->setInterval(0);
     //this->frameTimer->start();
     connect(this->frameTimer, &QTimer::timeout, this, &MainWindow::emulateFrame);
 

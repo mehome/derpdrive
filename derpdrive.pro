@@ -49,7 +49,8 @@ SOURCES += \
     chips/m68k/m68kopac.cpp \
     chips/m68k/m68kopdm.cpp \
     chips/m68k/m68kopnz.cpp \
-    chips/m68k/m68kdasm.cpp
+    chips/m68k/m68kdasm.cpp \
+    memorybank.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -79,7 +80,8 @@ HEADERS += \
     chips/m68k/m68k.h \
     chips/m68k/m68kconf.h \
     chips/m68k/m68kcpu.h \
-    chips/m68k/m68kops.h
+    chips/m68k/m68kops.h \
+    memorybank.h
 
 FORMS += \
         mainwindow.ui \

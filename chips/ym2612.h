@@ -14,9 +14,10 @@ public:
     ~YM2612();
 
     // Emulation
-    int            peek(quint32 address, quint8& val);
-    int            poke(quint32 address, quint8 val);
+    int     peek(quint32 address, quint8& val);
+    int     poke(quint32 address, quint8 val);
 
+    void    clock(int cycles);
 private:
     YM2612Private* d_ptr;
     Q_DECLARE_PRIVATE(YM2612)

@@ -12,7 +12,7 @@ class Controller
 {
       Q_OBJECT
    public:
-      explicit Controller(QObject *parent = nullptr);
+      explicit Controller(int controller, QObject *parent = nullptr);
       ~Controller();
 
       int      peek(quint32 address, quint8& val);

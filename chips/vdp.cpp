@@ -866,7 +866,7 @@ int VDP::clock(int cycles)
 
     d->currentCycles -= cycles;
 
-    while(d->currentCycles < 0) {
+    while(d->currentCycles < -4) {
 
         //} else {
         //   d->cpu->setDisabled(false);
@@ -969,11 +969,12 @@ int VDP::clock(int cycles)
 
                 //qDebug() << "VBLANK";
                 d->vertialInterruptPending = true;
-                this->interruptRequest(6);
 
-                d->z80->interrupt();
+                this->interruptRequest(6);
                 d->currentCycles = 0;
             }
+
+            d->z80->interrupt();
         }
 
         if (d->beamH == d->overscanWidth) {
