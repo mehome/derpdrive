@@ -165,10 +165,13 @@ public:
 
     int   screenScanlines;
     int   screenWidth;
-    int   horizontalInterruptCount;
+    quint8   horizontalInterruptCount;
 
     int   beamH;
     int   beamV;
+
+    int   counterH;
+    int   counterV;
 
     int   currentCycles;
 
@@ -209,6 +212,7 @@ public:
 public:
     explicit VDPPrivate(VDP* q, SDL_Renderer* renderer)
         : q_ptr(q),
+          oddFrame(false),
           renderer(renderer),
           displayActive(false),
           planeAEnabled(true),
@@ -224,8 +228,8 @@ public:
           dmaFinishedDbg(false),
           dmaFillWord(0),
           screenMode(PAL),
-          overscanWidth(423),
-          overscanHeight(312),
+          overscanWidth(374),   // 340?
+          overscanHeight(312),  // 312?
           planeAScrollX(0),
           planeAScrollY(0),
           planeBScrollX(0),
@@ -866,7 +870,9 @@ int VDP::clock(int cycles)
 
     d->currentCycles -= cycles;
 
-    while(d->currentCycles < -4) {
+    bool interruptFired = false;
+
+    while(d->currentCycles < 0 && !interruptFired) {
 
         //} else {
         //   d->cpu->setDisabled(false);
@@ -935,7 +941,9 @@ int VDP::clock(int cycles)
             // Scrolling
             d->scanlineScrollA.fill(0);
             d->scanlineScrollB.fill(0);
+        }
 
+        if (d->beamH == 0) {
             d->planeAScrollY = 0;
             d->planeBScrollY = 0;
 
@@ -957,40 +965,40 @@ int VDP::clock(int cycles)
             }
         }
 
-        /*QRgb* scanlineData = (QRgb*)d->frame.scanLine(d->beamV);
-
-        // Draw Background
-        scanlineData[d->beamH] =  & 0x00FFFFFF;*/
-
-        if (d->beamV == d->screenScanlines && d->beamH == d->overscanWidth) {
+        if (d->beamV == 0xE0 && d->beamH == 0x08) {
             if (d->registerData[ModeRegister2] & MODE2_IE0) {
-                for(int i = d->screenWidth; i < 512; i++)
+                for(int i = d->overscanWidth; i < 400; i++)
                     d->scanLine[i] = 0xFF880000;
 
                 //qDebug() << "VBLANK";
                 d->vertialInterruptPending = true;
 
                 this->interruptRequest(6);
-                d->currentCycles = 0;
+                //d->currentCycles = 0;
             }
 
             d->z80->interrupt();
+            d->vBlank = true;
+            interruptFired = true;
         }
 
-        if (d->beamH == d->overscanWidth) {
+        if (d->beamH == 0x115 && d->beamV <= 0xE0) {
             if (d->horizontalInterruptCount == 0) {
                 d->horizontalInterruptCount = d->registerData[HorizontalInterruptCounter];
 
                 if (d->registerData[ModeRegister1] & MODE1_IE1) {
-                    for(int i = d->screenWidth; i < 512; i++)
+                    for(int i = d->overscanWidth; i < 400; i++)
                         d->scanLine[i] = 0xFF000088;
 
                     this->interruptRequest(4);
-                    d->currentCycles = 0;
+                    //d->currentCycles = 0;
                 }
             } else {
                 d->horizontalInterruptCount--;
             }
+
+            d->hBlank = true;
+            interruptFired = true;
         }
 
         if (d->beamH > d->overscanWidth) {
@@ -998,12 +1006,13 @@ int VDP::clock(int cycles)
             d->beamV++;
 
             d->updateColorCache();
+            d->hBlank = false;
         }
 
         if (d->beamH < d->screenWidth &&
             d->beamV < d->screenScanlines &&
             (d->registerData[ModeRegister2] & MODE2_DE) &&
-            (((d->registerData[ModeRegister1] & MODE1_L) && (d->beamH < 8)) || !(d->registerData[ModeRegister1] & MODE1_L)))
+            (((d->registerData[ModeRegister1] & MODE1_L) && (d->beamH < 30)) || !(d->registerData[ModeRegister1] & MODE1_L)))
             d->displayActive = true;
         else
             d->displayActive = false;
@@ -1115,11 +1124,16 @@ int VDP::clock(int cycles)
         if (d->beamV >= d->overscanHeight) {
             d->beamV = 0;
             d->beamH = 0;
+
+            d->vBlank = false;
+            d->oddFrame = !d->oddFrame;
         }
 
         //}
-
-        d->currentCycles += 2;
+        if (d->oddFrame)
+            d->currentCycles += 2;
+        else
+            d->currentCycles += 3;
     }
 
     return 0;
@@ -1298,6 +1312,18 @@ int VDP::peek(quint32 address, quint8& val)
                 (d->dmaActive ? 0x02 : 0x00) |
                 (d->screenMode == PAL ? 0x01 : 0x00);
 
+        return NO_ERROR;
+
+    case 0x04:
+        if(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1))
+            val = d->beamH > 360 ? 0xA9 : ((d->beamH >> 1) & 0xFF);
+        else
+            val = d->beamH > 296 ? 0xA9 : ((d->beamH >> 1) & 0xFF);
+
+        return NO_ERROR;
+
+    case 0x05:
+        val = d->beamV;
         return NO_ERROR;
     }
 

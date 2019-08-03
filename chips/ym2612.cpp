@@ -2,6 +2,7 @@
 
 #include <QDebug>
 
+#include <math.h>
 #include <SDL2/SDL.h>
 
 enum YM2612Status {
@@ -11,8 +12,41 @@ enum YM2612Status {
 };
 
 enum Register {
-    DAC     = 0x2A,
-    DACEN   = 0x2B,
+    KEYSTATE    = 0x28,
+    DAC         = 0x2A,
+    DACEN       = 0x2B,
+};
+
+enum OPERATOR_STATE {
+    OP_STATE_OFF,
+    OP_STATE_ATTACK,
+    OP_STATE_SUSTAIN,
+    OP_STATE_DECAY,
+};
+
+struct Operator {
+    int         state;
+    int         totalLevel;
+    int         algorithm;
+    float       phase;
+    float       frequency;
+    float       envelopeScale;
+    float       envelope;
+    float       feedback;
+    float       in;
+    float       out;
+    bool        am;
+    quint8      ar;
+    quint8      rs;
+    quint8      d1r;
+    quint8      d2r;
+    quint8      rr;
+};
+
+struct Channel {
+    Operator    op[4];
+    float       frequency;
+    float       out;
 };
 
 class YM2612Private {
@@ -30,6 +64,9 @@ public:
     int         currentCycles;
     qint16*     buffer;
     int         bufferPos;
+
+    float       waveform[1024];
+    Channel     channel[6];
 
 public:
     YM2612Private(YM2612* q)
@@ -67,6 +104,16 @@ public:
         } else {
             this->audioDevice = 0;
         }
+
+        // Compute basic waveform
+        for(int i=0; i < 1024; i++) {
+            double degree = (i / 1024.0) * 360.0;
+            double radian = degree * M_PI / 180;
+
+            this->waveform[i] = static_cast<float>(sin(radian));
+        }
+
+        memset(&this->channel, 0, sizeof(Channel) * 6);
     }
 
     ~YM2612Private() {
@@ -77,8 +124,36 @@ public:
             SDL_CloseAudioDevice(this->audioDevice);
     }
 
-    void updateSample() {
+    void updateOperator(int channel, int op) {
+        Operator* opp = &this->channel[channel].op[op];
 
+
+    }
+
+    void updateEnvelope(int channel, int op) {
+
+    }
+
+    void modulateOperators() {
+
+    }
+
+    void updateChannels() {
+        for (int c=0; c < 6; c++) {
+            if (c == 5 && (this->registersPartI[DACEN] & 0x80)) {
+                this->channel[c].out = this->registersPartI[DAC] / 255.0f - .5f;
+            } else {
+                if (c < 3)
+                    this->channel[c].frequency = this->registersPartI[0xA0 + c] | (this->registersPartI[0xA4 + c] << 8);
+                else
+                    this->channel[c].frequency = this->registersPartII[0xA0 + c - 3] | (this->registersPartII[0xA4 + c - 3] << 8);
+
+                for (int o=0; o < 4; o++) {
+                    this->updateOperator(c, o);
+                    this->updateEnvelope(c, o);
+                }
+            }
+        }
     }
 
 private:
@@ -124,8 +199,19 @@ int YM2612::poke(quint32 address, quint8 val)
 
     case 0x4001:
         d->registersPartI[d->partISelect] = val;
-        if (d->partISelect == DAC)
-            d->status |= YM2612_BUSY;
+
+        switch(d->partISelect) {
+        case DAC:
+            //d->status |= YM2612_BUSY;
+            break;
+
+        case KEYSTATE:
+            d->channel[val & 0x7].op[0].state = val & 0x10 ? OP_STATE_ATTACK : OP_STATE_OFF;
+            d->channel[val & 0x7].op[1].state = val & 0x20 ? OP_STATE_ATTACK : OP_STATE_OFF;
+            d->channel[val & 0x7].op[2].state = val & 0x40 ? OP_STATE_ATTACK : OP_STATE_OFF;
+            d->channel[val & 0x7].op[3].state = val & 0x80 ? OP_STATE_ATTACK : OP_STATE_OFF;
+            break;
+        }
 
         break;
 
@@ -146,20 +232,26 @@ void YM2612::clock(int cycles) {
 
     d->currentCycles -= cycles;
 
-    while (d->currentCycles <= -345) {
-        int sample = d->bufferPos * 2;
-        qint16 data = 0;
+    while (d->currentCycles <= -344) {
+        int samplePos = d->bufferPos * 2;
+        float sample = 0;
 
-        if (d->registersPartI[DACEN] & 0x80) {
-            data = static_cast<qint16>((d->registersPartI[DAC] * 0xFF) - 0x8000);
+        d->updateChannels();
+        d->modulateOperators();
 
-            /*qDebug() << "Sample"
-                     << QString::number(d->registersPartI[DAC], 16).rightJustified(2, '0')
-                     << data;*/
+        for (int c=0; c < 6; c++) {
+            sample += d->channel[c].out;
         }
 
-        d->buffer[sample + 0] = data; // L
-        d->buffer[sample + 1] = data; // R
+        // Limit signal
+        if (sample > 1)
+            sample = 1;
+
+        if (sample < -1)
+            sample = -1;
+
+        d->buffer[samplePos + 0] = static_cast<qint16>(sample * 0x7FFF); // L
+        d->buffer[samplePos + 1] = static_cast<qint16>(sample * 0x7FFF); // R
 
         d->bufferPos+=1;
         if (d->bufferPos >= d->audioSpec.samples) {
@@ -169,8 +261,8 @@ void YM2612::clock(int cycles) {
             d->bufferPos = 0;
         }
 
-        d->status &= ~YM2612_BUSY;
+        //d->status &= ~YM2612_BUSY;
 
-        d->currentCycles += 345;
+        d->currentCycles += 344;
     }
 }

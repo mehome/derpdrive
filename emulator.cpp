@@ -227,10 +227,10 @@ void Emulator::emulate()
     SDL_PumpEvents();
 
     while(d->accumulator >= 420) {
-        d->vdp->clock(105);
         d->cpu->clock(60); // 60
-        d->ym2612->clock(60);
         d->z80->clock(28); // 28
+        d->ym2612->clock(60);
+        d->vdp->clock(105);
 
         d->accumulator -= 420;
         d->cyclesCount += 420;
