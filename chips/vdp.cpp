@@ -147,6 +147,7 @@ public:
     bool writePending;
 
     bool displayActive;
+    bool frameStart;
 
     bool planeAEnabled;
     bool planeBEnabled;
@@ -172,6 +173,9 @@ public:
 
     int   counterH;
     int   counterV;
+
+    int   displayX;
+    int   displayY;
 
     int   currentCycles;
 
@@ -215,6 +219,7 @@ public:
           oddFrame(false),
           renderer(renderer),
           displayActive(false),
+          frameStart(true),
           planeAEnabled(true),
           planeBEnabled(true),
           windowPlaneEnabled(true),
@@ -751,85 +756,91 @@ public:
     }
 
     inline quint32 tracePixel(int x, int y) {
-
-        if (!this->displayActive)
+        if (!this->displayActive || x >= this->screenWidth || y >= this->screenScanlines)
             return 0xFF000000;
-        else {
-            quint32 bgColor = this->colorCache[(this->registerData[BackgroundColor] & 0x30) >> 4]
-                                              [this->registerData[BackgroundColor] & 0xF] | 0xFF000000;
 
-            quint32 mixColor = bgColor;
-            quint32 planeAColor = 0;
-            quint32 planeBColor = 0;
-            quint32 spriteColor = 0;
+        quint32 bgColor = this->colorCache[(this->registerData[BackgroundColor] & 0x30) >> 4]
+                                          [this->registerData[BackgroundColor] & 0xF] | 0xFF000000;
 
-            bool planeAPriority = false;
-            bool planeBPriority = false;
-            bool spritePriority = false;
+        quint32 mixColor = bgColor;
+        quint32 planeAColor = 0;
+        quint32 planeBColor = 0;
+        quint32 spriteColor = 0;
 
-            int planeAX = x, planeAY = y;
-            int planeBX = x, planeBY = y;
+        bool planeAPriority = false;
+        bool planeBPriority = false;
+        bool spritePriority = false;
 
-            const quint16* hScrollData = reinterpret_cast<const quint16*>(this->vram + ((this->registerData[HScrollData] & 0x3F) << 10));
-            const quint16* vScrollData = reinterpret_cast<const quint16*>(this->vsram);
+        int displayOffsetX = 0;
+        int displayOffsetY = 0;
 
-            switch (this->registerData[ModeRegister3] & MODE3_HS) {
-            case 0x00:
-                planeAX = x - this->planeAScrollX;
-                planeBX = x - this->planeBScrollX;
-                break;
+        /*if (this->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1))
+            displayOffsetX = 5;
+        else
+            displayOffsetX = 4;*/
 
-            case 0x02:
-                planeAX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 ]);
-                planeBX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 + 1]);
-                break;
+        int planeAX = x - displayOffsetX, planeAY = y - displayOffsetY;
+        int planeBX = x - displayOffsetX, planeBY = y - displayOffsetY;
 
-            case 0x03:
-                planeAX = x - this->decodeDisplayScroll(hScrollData[y * 2]);
-                planeBX = x - this->decodeDisplayScroll(hScrollData[y * 2 + 1]);
-                break;
-            }
+        const quint16* hScrollData = reinterpret_cast<const quint16*>(this->vram + ((this->registerData[HScrollData] & 0x3F) << 10));
+        const quint16* vScrollData = reinterpret_cast<const quint16*>(this->vsram);
 
-            switch (this->registerData[ModeRegister3] & MODE3_VS) {
-            case 0x00:
-                planeAY = y - this->planeAScrollY;
-                planeBY = y - this->planeBScrollY;
-                break;
+        switch (this->registerData[ModeRegister3] & MODE3_HS) {
+        case 0x00:
+            planeAX = x - this->planeAScrollX;
+            planeBX = x - this->planeBScrollX;
+            break;
 
-            case 0x01:
-                planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
-                planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
-            }
+        case 0x02:
+            planeAX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 ]);
+            planeBX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 + 1]);
+            break;
 
-            if (this->planeAEnabled)
-                this->tracePlane(PLANEA, planeAX, planeAY, &planeAColor, &planeAPriority);
-
-            if (this->planeBEnabled)
-                this->tracePlane(PLANEB, planeBX, planeBY, &planeBColor, &planeBPriority);
-
-            if (this->spritesEnabled)
-                this->traceSprites(x, y, &spriteColor, &spritePriority);
-
-            if ((planeBColor & 0xFF000000) && !planeBPriority)
-                mixColor = planeBColor;
-
-            if ((planeAColor & 0xFF000000) && !planeAPriority)
-                mixColor = planeAColor;
-
-            if ((spriteColor & 0xFF000000) && !spritePriority)
-                mixColor = spriteColor;
-
-            if ((planeBColor & 0xFF000000) && planeBPriority)
-                mixColor = planeBColor;
-
-            if ((planeAColor & 0xFF000000) && planeAPriority)
-                mixColor = planeAColor;
-
-            if ((spriteColor & 0xFF000000) && spritePriority)
-                mixColor = spriteColor;
-
-            return mixColor;
+        case 0x03:
+            planeAX = x - this->decodeDisplayScroll(hScrollData[y * 2]);
+            planeBX = x - this->decodeDisplayScroll(hScrollData[y * 2 + 1]);
+            break;
         }
+
+        switch (this->registerData[ModeRegister3] & MODE3_VS) {
+        case 0x00:
+            planeAY = y - this->planeAScrollY;
+            planeBY = y - this->planeBScrollY;
+            break;
+
+        case 0x01:
+            planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
+            planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
+        }
+
+        if (this->planeAEnabled)
+            this->tracePlane(PLANEA, planeAX, planeAY, &planeAColor, &planeAPriority);
+
+        if (this->planeBEnabled)
+            this->tracePlane(PLANEB, planeBX, planeBY, &planeBColor, &planeBPriority);
+
+        if (this->spritesEnabled)
+            this->traceSprites(x - displayOffsetX, y - displayOffsetY, &spriteColor, &spritePriority);
+
+        if ((planeBColor & 0xFF000000) && !planeBPriority)
+            mixColor = planeBColor;
+
+        if ((planeAColor & 0xFF000000) && !planeAPriority)
+            mixColor = planeAColor;
+
+        if ((spriteColor & 0xFF000000) && !spritePriority)
+            mixColor = spriteColor;
+
+        if ((planeBColor & 0xFF000000) && planeBPriority)
+            mixColor = planeBColor;
+
+        if ((planeAColor & 0xFF000000) && planeAPriority)
+            mixColor = planeAColor;
+
+        if ((spriteColor & 0xFF000000) && spritePriority)
+            mixColor = spriteColor;
+
+        return mixColor;
     }
 
 private:
@@ -873,14 +884,16 @@ int VDP::clock(int cycles)
     bool interruptFired = false;
 
     while(d->currentCycles < 0 && !interruptFired) {
-
         //} else {
         //   d->cpu->setDisabled(false);
         //}
 
         // Check if display is enabled
         //if (d->registerData[ModeRegister1] & MODE1_DE) {
-        if (d->beamV == 0 && d->beamH == 0) {
+        if (d->frameStart) { //(d->beamV == 0 && d->beamH == 0) {
+            d->frameStart = false;
+            d->oddFrame != d->oddFrame;
+
             if (this->interruptPending())
                 this->clearInterrupt();
 
@@ -900,7 +913,7 @@ int VDP::clock(int cycles)
 
             //qDebug() << "Frame Start";
 
-            if(d->registerData[ModeRegister2] & MODE2_M2)
+            /*if(d->registerData[ModeRegister2] & MODE2_M2)
                 d->screenScanlines = 30 * 8;
             else
                 d->screenScanlines = 28 * 8;
@@ -908,9 +921,9 @@ int VDP::clock(int cycles)
             if(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1))
                 d->screenWidth = 40 * 8;
             else
-                d->screenWidth = 32 * 8;
+                d->screenWidth = 32 * 8;*/
 
-            d->beamH = 0;
+            //d->beamH = 0;
 
             // ======== Update internal registers ========
 
@@ -941,6 +954,9 @@ int VDP::clock(int cycles)
             // Scrolling
             d->scanlineScrollA.fill(0);
             d->scanlineScrollB.fill(0);
+
+            d->displayX = 0;
+            d->displayY = 0;
         }
 
         if (d->beamH == 0) {
@@ -965,29 +981,33 @@ int VDP::clock(int cycles)
             }
         }
 
-        if (d->beamV == 0xE0 && d->beamH == 0x08) {
-            if (d->registerData[ModeRegister2] & MODE2_IE0) {
-                for(int i = d->overscanWidth; i < 400; i++)
-                    d->scanLine[i] = 0xFF880000;
+        d->displayActive = !(d->vBlank || d->hBlank) && (d->registerData[ModeRegister2] & MODE2_DE);
 
-                //qDebug() << "VBLANK";
-                d->vertialInterruptPending = true;
+        d->scanLine = reinterpret_cast<quint32*>(static_cast<char*>(d->frameBuffer) + (d->beamV * (sizeof(quint32) * 512)));
 
-                this->interruptRequest(6);
-                //d->currentCycles = 0;
+        if (d->displayActive) {
+            d->displayY = d->counterV;
+
+            d->scanLine[d->beamH] = d->tracePixel(d->displayX, d->displayY);
+
+            d->displayX++;
+        } else if (d->vBlank) {
+            if (d->beamH == 0) {
+                for(int i = d->counterH; i < 512; i++)
+                    d->scanLine[i] = 0xFF888800;
             }
-
-            d->z80->interrupt();
-            d->vBlank = true;
-            interruptFired = true;
+        } else if (d->hBlank) {
+            d->scanLine[d->beamH] = 0xFF888800;
         }
 
-        if (d->beamH == 0x115 && d->beamV <= 0xE0) {
+        // According to https://plutiedev.com/mirror/kabuto-hardware-notes#hv-counter
+        if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x164) ||
+            (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x124)) {//d->beamH == 0x115 && d->beamV <= 0xE0) {
             if (d->horizontalInterruptCount == 0) {
                 d->horizontalInterruptCount = d->registerData[HorizontalInterruptCounter];
 
                 if (d->registerData[ModeRegister1] & MODE1_IE1) {
-                    for(int i = d->overscanWidth; i < 400; i++)
+                    for(int i = d->counterH; i < 512; i++)
                         d->scanLine[i] = 0xFF000088;
 
                     this->interruptRequest(4);
@@ -997,28 +1017,80 @@ int VDP::clock(int cycles)
                 d->horizontalInterruptCount--;
             }
 
+            d->updateColorCache();
             d->hBlank = true;
             interruptFired = true;
         }
 
-        if (d->beamH > d->overscanWidth) {
+        if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x0A) ||
+            (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x08)) {
+            d->hBlank = false;
+            //d->beamH = 0;
+            d->displayX = 0;
+            d->beamV++;
+        }
+
+        if (((d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xF0 && d->counterH == 0x00) ||
+            (!(d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xE0 && d->counterH == 0x00)) {
+
+            d->vertialInterruptPending = true;
+
+            if (d->registerData[ModeRegister2] & MODE2_IE0) {
+                for(int i = d->counterH; i < 512; i++)
+                    d->scanLine[i] = 0xFF880000;
+
+                //qDebug() << "VBLANK";
+
+                this->interruptRequest(6);
+                //d->currentCycles = 0;
+            }
+        }
+
+        if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x148) ||
+            (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x108)) {
+
+            if (((d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xEF) ||
+                (!(d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xDF)) {
+
+                d->z80->interrupt();
+                d->vBlank = true;
+                interruptFired = true;
+            }
+
+            if (d->counterV == 0x1FE) {
+                d->vBlank = false;
+                d->beamV = 0;
+                d->frameStart = true;
+            }
+
+            if ((d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0x10A)
+                d->counterV = 0x1D2;
+            else if (!(d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0x102)
+                d->counterV = 0x1CA;
+            else if (d->counterV == 0x1FF)
+                d->counterV = 0;
+            else
+                d->counterV++;
+        }
+
+        if (d->beamH == 0)
+            d->updateColorCache();
+
+        /*if (d->beamH > d->overscanWidth) {
             d->beamH = 0;
             d->beamV++;
 
             d->updateColorCache();
-            d->hBlank = false;
-        }
+            //d->hBlank = false;
+        }*/
 
-        if (d->beamH < d->screenWidth &&
+        /*if (d->beamH < d->screenWidth &&
             d->beamV < d->screenScanlines &&
             (d->registerData[ModeRegister2] & MODE2_DE) &&
             (((d->registerData[ModeRegister1] & MODE1_L) && (d->beamH < 30)) || !(d->registerData[ModeRegister1] & MODE1_L)))
             d->displayActive = true;
         else
-            d->displayActive = false;
-
-        d->scanLine = reinterpret_cast<quint32*>(static_cast<char*>(d->frameBuffer) + (d->beamV * (sizeof(quint32) * 512)));
-        d->scanLine[d->beamH] = d->tracePixel(d->beamH, d->beamV);
+            d->displayActive = false;*/
 
         if (d->dmaActive && !d->dmaDataWait) {
             //while(true) {
@@ -1119,21 +1191,37 @@ int VDP::clock(int cycles)
             }
         }
 
+        // According to https://plutiedev.com/mirror/kabuto-hardware-notes#hv-counter
+        if ((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x16C)
+            d->counterH = 0x1C8;
+        else if (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x126)
+            d->counterH = 0x1D2;
+        else if (d->counterH == 0x1FF) {
+            d->counterH = 0;
+            d->beamH = -1;
+        } else
+            d->counterH++;
+
         d->beamH++;
 
-        if (d->beamV >= d->overscanHeight) {
+        /*if (d->beamV >= d->overscanHeight) {
             d->beamV = 0;
             d->beamH = 0;
 
-            d->vBlank = false;
+            //d->vBlank = false;
             d->oddFrame = !d->oddFrame;
-        }
+        }*/
 
         //}
-        if (d->oddFrame)
-            d->currentCycles += 2;
-        else
+        //if (d->oddFrame)
+        //    d->currentCycles += 2;
+        //else
+        if ((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0xB2 && d->counterH <= 0xD2)
             d->currentCycles += 3;
+        else if (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0x93 && d->counterH <= 0xB3)
+            d->currentCycles += 8;
+        else
+            d->currentCycles += 2;
     }
 
     return 0;
@@ -1163,6 +1251,10 @@ void VDP::reset()
 
     d->beamH = 0;
     d->beamV = 0;
+    d->counterH = 0;
+    d->counterV = 0;
+    d->displayX = 0;
+    d->displayY = 0;
     d->commandCount = 0;
 
     d->command = NONE;
@@ -1315,15 +1407,17 @@ int VDP::peek(quint32 address, quint8& val)
         return NO_ERROR;
 
     case 0x04:
-        if(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1))
+        val = d->counterV & 0xFF;
+        /*if(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1))
             val = d->beamH > 360 ? 0xA9 : ((d->beamH >> 1) & 0xFF);
         else
-            val = d->beamH > 296 ? 0xA9 : ((d->beamH >> 1) & 0xFF);
+            val = d->beamH > 296 ? 0xA9 : ((d->beamH >> 1) & 0xFF);*/
 
         return NO_ERROR;
 
     case 0x05:
-        val = d->beamV;
+        val = (d->counterH >> 0) & 0xFF;
+
         return NO_ERROR;
     }
 

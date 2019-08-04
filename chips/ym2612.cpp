@@ -255,8 +255,6 @@ void YM2612::clock(int cycles) {
 
         d->bufferPos+=1;
         if (d->bufferPos >= d->audioSpec.samples) {
-            qDebug() << SDL_GetQueuedAudioSize(d->audioDevice);
-
             SDL_QueueAudio(d->audioDevice, d->buffer, d->audioSpec.size);
             d->bufferPos = 0;
         }
