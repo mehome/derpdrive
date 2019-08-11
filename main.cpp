@@ -44,6 +44,8 @@ public:
         if (eventType == "windows_generic_MSG") {
 
         }
+
+        return true;
     }
 };
 

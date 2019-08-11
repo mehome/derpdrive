@@ -11,6 +11,7 @@
 #define __Z80USER_INCLUDED__
 
 #include <chips/z80.h>
+#include <QDebug>
 
 /* Write the following macros for memory access and input/output on the Z80. 
  *
@@ -92,6 +93,7 @@
    quint8 v;                                                            \
    ((Z80*) context)->bus()->peek(address & 0xffff, v);                  \
    (x) = v;                                                             \
+   elapsed_cycles += 4; \
 }
 
 #define Z80_FETCH_BYTE(address, x)		Z80_READ_BYTE((address), (x))
@@ -104,6 +106,8 @@
    ((Z80*) context)->bus()->peek((address + 1) & 0xffff, v1);           \
                            \
    x = v0 | (v1 << 8);                                                  \
+   \
+   elapsed_cycles += 8; \
 }
 
 #define Z80_FETCH_WORD(address, x)		Z80_READ_WORD((address), (x))
@@ -111,13 +115,23 @@
 #define Z80_WRITE_BYTE(address, x)                                      \
 {                                                                       \
    ((Z80*) context)->bus()->poke(address & 0xffff, x);                  \
+   elapsed_cycles += 4; \
 }
+
+//qDebug() << "Z80 WRITE" << QString::number(address, 16).rightJustified(6, '0') \
+//<< QString::number(x, 16).rightJustified(2, '0');
 
 #define Z80_WRITE_WORD(address, x)                                      \
 {                                                                       \
    ((Z80*) context)->bus()->poke(address & 0xffff, x & 0xff);           \
    ((Z80*) context)->bus()->poke((address + 1) & 0xffff, (x >> 8) & 0xff); \
+   elapsed_cycles += 8; \
 }
+
+//
+
+//qDebug() << "Z80 WRITE" << QString::number(address, 16).rightJustified(6, '0') \
+     //<< QString::number(x, 16).rightJustified(4, '0');
 
 #define Z80_READ_WORD_INTERRUPT(address, x)	Z80_READ_WORD((address), (x))
 

@@ -28,7 +28,6 @@ class Z80
       int            peek(quint32 address, quint8& val);
       int            poke(quint32 address, quint8 val);
 
-
    private:
       Z80Private* d_ptr;
       Q_DECLARE_PRIVATE(Z80)

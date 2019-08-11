@@ -2,6 +2,7 @@
 #include "z80/z80emu.h"
 
 #include <QDebug>
+#include <QTimer>
 
 class Z80Private {
    public:
@@ -9,6 +10,7 @@ class Z80Private {
       MemoryBus*  bus;
       bool        busReq;
       bool        resetting;
+      int         currentCycles;
 
    public:
       Z80Private(Z80* q)
@@ -30,7 +32,6 @@ Z80::Z80(QObject* parent)
    : QObject(parent),
      d_ptr(new Z80Private(this))
 {
-
 }
 
 Z80::~Z80()
@@ -56,8 +57,10 @@ int Z80::clock(int cycles)
 {
    Q_D(Z80);
 
-   if (!d->busReq && !d->resetting)
-      Z80Emulate(&d->state, cycles, this);
+   if (!d->busReq && !d->resetting) {
+      d->currentCycles += cycles;
+      d->currentCycles -= Z80Emulate(&d->state, d->currentCycles, this);
+   }
 
    return 0;
 }
@@ -73,7 +76,7 @@ void Z80::interrupt()
 {
    Q_D(Z80);
 
-   Z80Interrupt(&d->state, 0, this);
+   d->currentCycles -= Z80Interrupt(&d->state, 0, this);
 }
 
 int Z80::peek(quint32 address, quint8& val)

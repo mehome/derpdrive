@@ -23,7 +23,13 @@ DEFINES += QT_DEPRECATED_WARNINGS SDL_MAIN_HANDLED
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
-LIBS += -lSDL2main -lSDL2
+win32:INCLUDEPATH += "./SDL/include"
+win32:DEFINES += INLINE=inline
+win32:QMAKE_CFLAGS += -Zc:strictStrings-
+win32:QMAKE_CXXFLAGS += -Zc:strictStrings-
+win32:LIBS += -L$$PWD/SDL/lib/x64 -lSDL2
+
+!win32:LIBS += -lSDL2main -lSDL2
 
 SOURCES += \
         main.cpp \

@@ -259,6 +259,8 @@ bool Emulator::loadCartridge(QString file)
 
     d->cartridge->load(file);
     this->reset();
+
+    return true;
 }
 
 void Emulator::setClockRate(long clock)

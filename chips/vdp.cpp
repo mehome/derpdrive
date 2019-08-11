@@ -166,7 +166,7 @@ public:
 
     int   screenScanlines;
     int   screenWidth;
-    quint8   horizontalInterruptCount;
+    int   horizontalInterruptCount;
 
     int   beamH;
     int   beamV;
@@ -275,6 +275,14 @@ public:
         }
     }
 
+    void updateColorCache(int address) {
+        int row = (address / 2) / 16;
+        int cell = (address / 2) % 16;
+
+        this->colorCache[row][cell] = this->readColor(row, cell);
+        this->scanLine[this->beamH] = this->colorCache[row][cell];
+    }
+
     void updateSpriteCache() {
         int spriteCount = 0;
 
@@ -304,7 +312,7 @@ public:
             qDebug() << QString::number(qFromBigEndian(entry[2]), 16).rightJustified(8, '0');
             qDebug() << QString::number(qFromBigEndian(entry[3]), 16).rightJustified(8, '0');*/
 
-            this->spriteCache << (SpriteCache){
+            this->spriteCache << SpriteCache{
                 QRect(posX, posY, w * 8, h * 8),
                 (currentEntry - spriteTableAddress) / 8,
                 posX,
@@ -551,18 +559,26 @@ public:
 
             switch (this->command) {
             case CRAM_WRITE:
+            {
                 this->cram[(this->addressRegister & 0x7F)] = static_cast<char>(data & 0x00FF);
                 this->cram[(this->addressRegister + 1) & 0x7F] = static_cast<char>((data & 0xFF00) >> 8);
+
+                this->updateColorCache(this->addressRegister);
+
                 this->addressRegister += this->registerData[AutoIncrementValue];
                 break;
+            }
 
             case VRAM_WRITE:
+            {
                 this->vram[this->addressRegister & 0xFFFF] = static_cast<char>(data & 0x00FF);
                 this->vram[(this->addressRegister + 1) & 0xFFFF] = static_cast<char>((data & 0xFF00) >> 8);
                 this->addressRegister += this->registerData[AutoIncrementValue];
                 break;
+            }
 
             case VSRAM_WRITE:
+            {
                 this->addressRegister &= 0x7F;
 
                 if(this->addressRegister < 0x4F) {
@@ -572,6 +588,7 @@ public:
 
                 this->addressRegister += this->registerData[AutoIncrementValue];
                 break;
+            }
 
 
             default:
@@ -792,8 +809,8 @@ public:
             break;
 
         case 0x02:
-            planeAX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 ]);
-            planeBX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 2 + 1]);
+            planeAX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 16 ]);
+            planeBX = x - this->decodeDisplayScroll(hScrollData[(y/8) * 16 + 1]);
             break;
 
         case 0x03:
@@ -809,8 +826,8 @@ public:
             break;
 
         case 0x01:
-            planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
-            planeAY = y - this->decodeDisplayScroll(vScrollData[x/16]);
+            planeAY = y - this->decodeDisplayScroll(vScrollData[(x/16) * 2]);
+            planeBY = y - this->decodeDisplayScroll(vScrollData[(x/16) * 2 + 1]);
         }
 
         if (this->planeAEnabled)
@@ -927,7 +944,7 @@ int VDP::clock(int cycles)
 
             // ======== Update internal registers ========
 
-            d->updateColorCache();
+            //d->updateColorCache();
 
             // Screen resolution
             d->screenScanlines  = (d->registerData[ModeRegister2] & MODE2_M2) ? 240 : 224;
@@ -959,7 +976,7 @@ int VDP::clock(int cycles)
             d->displayY = 0;
         }
 
-        if (d->beamH == 0) {
+        //if (d->beamH == 0) {
             d->planeAScrollY = 0;
             d->planeBScrollY = 0;
 
@@ -979,10 +996,11 @@ int VDP::clock(int cycles)
                 d->planeAScrollX = d->decodeDisplayScroll(scrollData[0]);
                 d->planeBScrollX = d->decodeDisplayScroll(scrollData[1]);
             }
-        }
+        //}
 
         d->displayActive = !(d->vBlank || d->hBlank) && (d->registerData[ModeRegister2] & MODE2_DE);
 
+        // Update current Scanline
         d->scanLine = reinterpret_cast<quint32*>(static_cast<char*>(d->frameBuffer) + (d->beamV * (sizeof(quint32) * 512)));
 
         if (d->displayActive) {
@@ -992,20 +1010,23 @@ int VDP::clock(int cycles)
 
             d->displayX++;
         } else if (d->vBlank) {
-            if (d->beamH == 0) {
-                for(int i = d->counterH; i < 512; i++)
-                    d->scanLine[i] = 0xFF888800;
-            }
+            //if (d->beamH == 0) {
+                //for(int i = d->counterH; i < 512; i++)
+            if (!(d->scanLine[d->beamH] & 0x00FFFFFF))
+                d->scanLine[d->beamH] = 0xFF888800;
+            //}
         } else if (d->hBlank) {
-            d->scanLine[d->beamH] = 0xFF888800;
+            if (!(d->scanLine[d->beamH] & 0x00FFFFFF))
+                d->scanLine[d->beamH] = 0xFF888800;
         }
 
         // According to https://plutiedev.com/mirror/kabuto-hardware-notes#hv-counter
         if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x164) ||
             (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x124)) {//d->beamH == 0x115 && d->beamV <= 0xE0) {
-            if (d->horizontalInterruptCount == 0) {
-                d->horizontalInterruptCount = d->registerData[HorizontalInterruptCounter];
 
+            d->horizontalInterruptCount--;
+
+            if (d->horizontalInterruptCount < 0) {
                 if (d->registerData[ModeRegister1] & MODE1_IE1) {
                     for(int i = d->counterH; i < 512; i++)
                         d->scanLine[i] = 0xFF000088;
@@ -1013,21 +1034,23 @@ int VDP::clock(int cycles)
                     this->interruptRequest(4);
                     //d->currentCycles = 0;
                 }
-            } else {
-                d->horizontalInterruptCount--;
             }
 
-            d->updateColorCache();
             d->hBlank = true;
-            interruptFired = true;
+            //interruptFired = true;
         }
 
         if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x0A) ||
             (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x08)) {
+
+            d->horizontalInterruptCount = d->registerData[HorizontalInterruptCounter];
+
             d->hBlank = false;
             //d->beamH = 0;
             d->displayX = 0;
             d->beamV++;
+
+            //d->updateColorCache();
         }
 
         if (((d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xF0 && d->counterH == 0x00) ||
@@ -1044,6 +1067,8 @@ int VDP::clock(int cycles)
                 this->interruptRequest(6);
                 //d->currentCycles = 0;
             }
+
+            d->z80->interrupt();
         }
 
         if (((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH == 0x148) ||
@@ -1052,9 +1077,12 @@ int VDP::clock(int cycles)
             if (((d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xEF) ||
                 (!(d->registerData[ModeRegister2] & MODE2_M2) && d->counterV == 0xDF)) {
 
-                d->z80->interrupt();
+                for(int i = d->counterH; i < 512; i++)
+                    d->scanLine[i] = 0xFF00FF00;
+
+                //d->z80->interrupt();
                 d->vBlank = true;
-                interruptFired = true;
+                //interruptFired = true;
             }
 
             if (d->counterV == 0x1FE) {
@@ -1072,9 +1100,6 @@ int VDP::clock(int cycles)
             else
                 d->counterV++;
         }
-
-        if (d->beamH == 0)
-            d->updateColorCache();
 
         /*if (d->beamH > d->overscanWidth) {
             d->beamH = 0;
@@ -1122,7 +1147,7 @@ int VDP::clock(int cycles)
 
                 // Only perform DMA if we have valid information
                 if (target) {
-                    if (    (d->command != VSRAM_WRITE) ||
+                    if (    (d->command != VSRAM_WRITE && d->command != CRAM_WRITE) ||
                             (d->command == VSRAM_WRITE && d->addressRegister <= 0x3F) ||
                             (d->command == CRAM_WRITE && d->addressRegister <= 0x7F)) {
 
@@ -1147,10 +1172,6 @@ int VDP::clock(int cycles)
                                 target[(d->addressRegister & 0xFFFE) + 1]   = b1;
                             }
 
-                            if (d->command == CRAM_WRITE) {
-                                d->scanLine[d->beamH] = d->decodeColor(b0, b1);
-                            }
-
                             d->dmaSource += 2;
                         } else if (d->dmaType == 0x2) { // DMA FILL
                             if (!d->dmaStarted && d->command == VRAM_WRITE)
@@ -1166,6 +1187,10 @@ int VDP::clock(int cycles)
                             target[d->addressRegister + 1]   = target[d->dmaSource + 1];
 
                             d->dmaSource += 2;
+                        }
+
+                        if (d->command == CRAM_WRITE) {
+                            d->updateColorCache(d->addressRegister);
                         }
                     } else {
                         d->dmaLength = 1;
@@ -1216,9 +1241,9 @@ int VDP::clock(int cycles)
         //if (d->oddFrame)
         //    d->currentCycles += 2;
         //else
-        if ((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0xB2 && d->counterH <= 0xD2)
+        if ((d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0xB2 && d->counterH < 0xD0)
             d->currentCycles += 3;
-        else if (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0x93 && d->counterH <= 0xB3)
+        else if (!(d->registerData[ModeRegister4] & (MODE4_RS0 | MODE4_RS1)) && d->counterH >= 0x93 && d->counterH < 0xB2)
             d->currentCycles += 8;
         else
             d->currentCycles += 2;
@@ -1469,6 +1494,10 @@ int VDP::poke(quint32 address, quint8 val)
         d->commandCount++;
         d->handleCommand();
         return NO_ERROR;
+
+    case 0x06:
+        qDebug() << "PSG WRITE";
+        break;
     }
     return NO_ERROR;
 }
