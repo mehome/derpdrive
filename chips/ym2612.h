@@ -18,6 +18,10 @@ public:
     int     poke(quint32 address, quint8 val);
 
     void    clock(int cycles);
+
+public slots:
+    void    reportSampleFrequency();
+
 private:
     YM2612Private* d_ptr;
     Q_DECLARE_PRIVATE(YM2612)
